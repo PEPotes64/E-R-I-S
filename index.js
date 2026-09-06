@@ -110,32 +110,40 @@ client.on('interactionCreate', async (interaction) => {
   if (!interaction.isChatInputCommand()) return;
 
   if (interaction.commandName === 'maldicion') {
-    await interaction.deferReply();
+    try {
+      await interaction.deferReply();
 
-    const tipo = interaction.options.getString('tipo');
-    const victima = interaction.options.getMember('victima');
-    const atacante = interaction.member;
-    const guildId = interaction.guild.id;
+      const tipo = interaction.options.getString('tipo');
+      const victima = interaction.options.getMember('victima');
+      const atacante = interaction.member;
 
-    if (!victima) {
-      await interaction.editReply('Puchica maje, ese usuario no está en el servidor.');
-      return;
-    }
+      // VALIDACION DE VICTIMA (Evita que truene el id)
+      if (!victima) {
+        await interaction.editReply('Puchica maje, tenes que seleccionar a una victima valida.');
+        return;
+      }
 
-    if (victima.user.bot) {
-      await interaction.editReply('Puchica maje, no podés maldecir a un bot > < :v');
-      return;
-    }
+      const guildId = interaction.guild?.id;
 
-    if (victima.id === atacante.id) {
-      await interaction.editReply('¿Te vas a maldecir a vos mismo? No seas mero tronco chei.');
-      return;
-    }
+      if (victima.user.bot) {
+        await interaction.editReply('Puchica maje, no podes maldecir a un bot > < :v');
+        return;
+      }
 
-    let atacanteData = await UserXP.findOne({ userId: atacante.id, guildId });
-    let victimaData = await UserXP.findOne({ userId: victima.id, guildId });
+      if (victima.id === atacante.id) {
+        await interaction.editReply('¿Te vas a maldecir a vos mismo? No seas mero tronco chei.');
+        return;
+      }
 
-    const xpAtacante = obtenerXpTotal(atacanteData);
+      // Correccion de variables (guildId bien escrito)
+      let atacanteData = await UserXP.findOne({ userId: atacante.id, guildId });
+      let victimaData = await UserXP.findOne({ userId: victima.id, guildId });
+
+      if (!atacanteData) atacanteData = new UserXP({ userId: atacante.id, guildId, xp: 0, level: 1 });
+      if (!victimaData) victimaData = new UserXP({ userId: victima.id, guildId, xp: 0, level: 1 });
+
+      const xpAtacante = obtenerXpTotal(atacanteData);
+
 
     // --- MALDICIÓN 1: SUSTO (1,000 XP) ---
     if (tipo === 'susto') {
