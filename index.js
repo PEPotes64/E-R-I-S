@@ -232,10 +232,16 @@ client.on('interactionCreate', async (interaction) => {
       await atacanteData.save();
       await victimaData.save();
 
-      await interaction.editReply(`💸 **¡ROBO INTERGALÁCTICO!** **${atacante.user.username}** usó la magia negra de Eris para robarle **${cantidadRealRobada} XP** a **${victima.user.username}**.`);
-    }
+      await interaction.editReply(`💸 **¡ROBO INTERGALÁCTICO!** **${atacante.user.username}** le robó **${cantidadRealRobada} XP** a **${victima.user.username}**.`);
+      }
+    } catch (error) {
+      console.error('❌ Error ejecutando la maldición:', error);
+      if (interaction.deferred || interaction.replied) {
+        await interaction.editReply('Puchica maje, ocurrió un clavo interno al tirar la maldición.');
+      }
   }
 });
+
 
 // 5. Iniciar Sesión con el Token de ERIS desde las variables de Render / .env
 client.login(process.env.DISCORD_TOKEN_ERIS);
