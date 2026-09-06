@@ -1,0 +1,14 @@
+{
+  "name": "eris-bot",
+  "version": "1.0.0",
+  "description": "Bot de maldiciones y troleo para el evento de Halloween",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "discord.js": "^14.14.1",
+    "dotenv": "^16.4.5",
+    "mongoose": "^8.2.1"
+  }
+}
