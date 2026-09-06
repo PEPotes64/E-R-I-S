@@ -1,55 +1,7 @@
-const { Client, GatewayIntentBits, EmbedBuilder, ApplicationCommandOptionType } = require('discord.js');
+const { Client, GatewayIntentBits, EmbedBuilder, SlashCommandBuilder } = require('discord.js');
 const mongoose = require('mongoose');
-require('dotenv').config();
 
-// 1. Conexión a MongoDB (Usa la misma base de datos de Zeus)
-mongoose.connect(process.env.MONGODB_URI)
-  .then(() => console.log('🔥 ERIS se conectó con éxito a MongoDB'))
-  .catch((err) => console.error('❌ Clavo al conectar MongoDB:', err));
-
-// Esquema de UserXP (Mismo de Zeus para compartir los puntos acumulados)
-const userXpSchema = new mongoose.Schema({
-  userId: { type: String, required: true },
-  guildId: { type: String, required: true },
-  xp: { type: Number, default: 0 },
-  level: { type: Number, default: 1 }
-});
-
-const UserXP = mongoose.models.UserXP || mongoose.model('UserXP', userXpSchema);
-
-// Función para calcular la XP Total Acumulada
-const obtenerXpTotal = (data) => {
-  if (!data) return 0;
-  let total = data.xp;
-  for (let i = 1; i < data.level; i++) {
-    total += (i + 1) * 100;
-  }
-  return total;
-};
-
-// Función para restar XP Total consumiendo niveles si es necesario
-const restarXpTotal = (data, costo) => {
-  let xpRestante = costo;
-  
-  if (data.xp >= xpRestante) {
-    data.xp -= xpRestante;
-  } else {
-    xpRestante -= data.xp;
-    data.xp = 0;
-    while (xpRestante > 0 && data.level > 1) {
-      data.level -= 1;
-      let xpDelNivel = data.level * 100;
-      if (xpDelNivel >= xpRestante) {
-        data.xp = xpDelNivel - xpRestante;
-        xpRestante = 0;
-      } else {
-        xpRestante -= xpDelNivel;
-      }
-    }
-  }
-};
-
-// 2. Configuración del Cliente de Discord
+// 1. Configuración del Bot de Discord
 const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
@@ -59,42 +11,60 @@ const client = new Client({
   ]
 });
 
-client.once('ready', () => {
-  console.log(`🔥 ¡ERIS ha despertado como ${client.user.tag}!`);
+// 2. Conexión a MongoDB
+mongoose.connect(process.env.MONGO_URI)
+  .then(() => console.log('✅ Conectado a MongoDB nitidez.'))
+  .catch((err) => console.error('❌ Clavo al conectar a MongoDB:', err));
+
+// Esquema de XP
+const userXpSchema = new mongoose.Schema({
+  userId: String,
+  guildId: String,
+  xp: { type: Number, default: 0 },
+  level: { type: Number, default: 1 }
 });
 
-// 3. Registrar Comando Slash /maldicion
-client.on('ready', async () => {
+const UserXP = mongoose.model('UserXP', userXpSchema);
+
+// Funciones Auxiliares
+function obtenerXpTotal(userData) {
+  return userData ? userData.xp : 0;
+}
+
+function restarXpTotal(userData, cantidad) {
+  if (userData) {
+    userData.xp = Math.max(0, userData.xp - cantidad);
+  }
+}
+
+// 3. Registro de Comandos Slash
+client.once('ready', async () => {
+  console.log(`🤖 Bot iniciado como ${client.user.tag}`);
+
   const commands = [
-    {
-      name: 'maldicion',
-      description: '👁️ Lanza una maldición de Eris a un usuario usando tu XP.',
-      options: [
-        {
-          name: 'tipo',
-          description: 'Selecciona el tipo de maldición',
-          type: ApplicationCommandOptionType.String,
-          required: true,
-          choices: [
+    new SlashCommandBuilder()
+      .setName('maldicion')
+      .setDescription('Tira una maldición usando tu XP')
+      .addStringOption(option =>
+        option.setName('tipo')
+          .setDescription('Tipo de maldición')
+          .setRequired(true)
+          .addChoices(
+            { name: '👻 Susto (1,000 XP)', value: 'susto' },
             { name: '🤡 Apodo Feo (1,500 XP)', value: 'apodo' },
-            { name: '👻 Susto Macabro (1,000 XP)', value: 'susto' },
             { name: '💸 Robo de XP (2,000 XP)', value: 'robo' }
-          ]
-        },
-        {
-          name: 'victima',
-          description: 'El usuario que va a sufrir la maldición',
-          type: ApplicationCommandOptionType.User,
-          required: true
-        },
-        {
-          name: 'nuevo_apodo',
-          description: 'El apodo feo (Solo para la maldición de Apodo)',
-          type: ApplicationCommandOptionType.String,
-          required: false
-        }
-      ]
-    }
+          )
+      )
+      .addUserOption(option =>
+        option.setName('victima')
+          .setDescription('Usuario al que le vas a tirar la maldición')
+          .setRequired(true)
+      )
+      .addStringOption(option =>
+        option.setName('nuevo_apodo')
+          .setDescription('Apodo feo para la víctima (solo si elegiste Apodo)')
+          .setRequired(false)
+      )
   ];
 
   try {
@@ -114,31 +84,32 @@ client.on('interactionCreate', async (interaction) => {
       await interaction.deferReply();
 
       const tipo = interaction.options.getString('tipo');
-      const victima = interaction.options.getMember('victima');
+      const victimaUser = interaction.options.getUser('victima');
+      const victimaMember = interaction.options.getMember('victima');
       const atacante = interaction.member;
 
-      if (!victima) {
+      if (!victimaUser) {
         await interaction.editReply('Puchica maje, tenes que seleccionar a una victima valida.');
         return;
       }
 
       const guildId = interaction.guild?.id;
 
-      if (victima.user.bot) {
+      if (victimaUser.bot) {
         await interaction.editReply('Puchica maje, no podes maldecir a un bot > < :v');
         return;
       }
 
-      if (victima.id === atacante.id) {
+      if (victimaUser.id === atacante.id) {
         await interaction.editReply('¿Te vas a maldecir a vos mismo? No seas mero tronco chei.');
         return;
       }
 
       let atacanteData = await UserXP.findOne({ userId: atacante.id, guildId });
-      let victimaData = await UserXP.findOne({ userId: victima.id, guildId });
+      let victimaData = await UserXP.findOne({ userId: victimaUser.id, guildId });
 
       if (!atacanteData) atacanteData = new UserXP({ userId: atacante.id, guildId, xp: 0, level: 1 });
-      if (!victimaData) victimaData = new UserXP({ userId: victima.id, guildId, xp: 0, level: 1 });
+      if (!victimaData) victimaData = new UserXP({ userId: victimaUser.id, guildId, xp: 0, level: 1 });
 
       const xpAtacante = obtenerXpTotal(atacanteData);
 
@@ -167,11 +138,11 @@ client.on('interactionCreate', async (interaction) => {
 
         const embedSusto = new EmbedBuilder()
           .setTitle('👻 ¡UNA MALDICIÓN HA CAÍDO SOBRE TI!')
-          .setDescription(`**${victima}**, las sombras de Eris te persiguen... ¡**${atacante.user.username}** pagó 1,000 XP para pegarte un susto de Halloween! 🎃⚡`)
+          .setDescription(`**${victimaUser}**, las sombras de Eris te persiguen... ¡**${atacante.user.username}** pagó 1,000 XP para pegarte un susto de Halloween! 🎃⚡`)
           .setColor('#8B0000')
           .setImage(gifElegido);
 
-        await interaction.editReply({ content: `${victima}`, embeds: [embedSusto] });
+        await interaction.editReply({ content: `${victimaUser}`, embeds: [embedSusto] });
       }
 
       // --- MALDICIÓN 2: APODO FEO (1,500 XP) ---
@@ -184,14 +155,19 @@ client.on('interactionCreate', async (interaction) => {
           return;
         }
 
+        if (!victimaMember) {
+          await interaction.editReply('No pude encontrar a ese usuario en el servidor para cambiarle el apodo.');
+          return;
+        }
+
         try {
-          await victima.setNickname(nuevoApodo);
+          await victimaMember.setNickname(nuevoApodo);
           restarXpTotal(atacanteData, PRECIO);
           await atacanteData.save();
 
-          await interaction.editReply(`🤡 **¡MALDICIÓN APLICADA!** Eris le ha cambiado el apodo a **${victima.user.username}** por **"${nuevoApodo}"**.`);
+          await interaction.editReply(`🤡 **¡MALDICIÓN APLICADA!** Eris le ha cambiado el apodo a **${victimaUser.username}** por **"${nuevoApodo}"**.`);
         } catch (err) {
-          await interaction.editReply('Puchica, no pude cambiarle el apodo. Revisá si el bot tiene permisos de *Manage Nicknames*.');
+          await interaction.editReply('Puchica, no pude cambiarle el apodo. Revisá si el bot tiene permisos de *Manage Nicknames* y si está por encima del usuario.');
         }
       }
 
@@ -220,7 +196,7 @@ client.on('interactionCreate', async (interaction) => {
         await atacanteData.save();
         await victimaData.save();
 
-        await interaction.editReply(`💸 **¡ROBO INTERGALÁCTICO!** **${atacante.user.username}** le robó **${cantidadRealRobada} XP** a **${victima.user.username}**.`);
+        await interaction.editReply(`💸 **¡ROBO INTERGALÁCTICO!** **${atacante.user.username}** le robó **${cantidadRealRobada} XP** a **${victimaUser.username}**.`);
       }
     } catch (error) {
       console.error('❌ Error ejecutando la maldición:', error);
@@ -231,6 +207,6 @@ client.on('interactionCreate', async (interaction) => {
   }
 });
 
-// 5. Iniciar Sesión con el Token de ERIS desde las variables de Render
+// 5. Iniciar Sesión con el Token de ERIS
 client.login(process.env.DISCORD_TOKEN_ERIS);
-        
+          
