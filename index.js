@@ -1,7 +1,13 @@
-const { Client, GatewayIntentBits, EmbedBuilder, SlashCommandBuilder } = require('discord.js');
+const { 
+  Client, 
+  GatewayIntentBits, 
+  EmbedBuilder, 
+  SlashCommandBuilder,
+  PermissionFlagsBits 
+} = require('discord.js');
 const mongoose = require('mongoose');
 
-// 1. Configuración del Bot de Discord
+// 1. Inicialización de ERIS
 const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
@@ -11,202 +17,233 @@ const client = new Client({
   ]
 });
 
-// 2. Conexión a MongoDB
+// Conexión a Mongo
 mongoose.connect(process.env.MONGO_URI)
-  .then(() => console.log('✅ Conectado a MongoDB nitidez.'))
-  .catch((err) => console.error('❌ Clavo al conectar a MongoDB:', err));
+  .then(() => console.log('⚡ ERIS: Conectado a Mongo nitidez.'))
+  .catch((err) => console.error('❌ ERIS: Clavo al conectar a Mongo:', err));
 
-// Esquema de XP
-const userXpSchema = new mongoose.Schema({
-  userId: String,
-  guildId: String,
-  xp: { type: Number, default: 0 },
-  level: { type: Number, default: 1 }
+// 2. Base de Datos
+const erisUserSchema = new mongoose.Schema({
+  userId: { type: String, required: true },
+  guildId: { type: String, required: true },
+  xp: { type: Number, default: 1000 }, // XP inicial para jugar
+  diasActivos: { type: Number, default: 0 },
+  ultimaActividad: { type: Date },
+  canalesDesbloqueados: [{ type: String }] // Guardamos las IDs de los canales que ya abrió
 });
 
-const UserXP = mongoose.model('UserXP', userXpSchema);
+const ErisUser = mongoose.model('ErisUser', erisUserSchema);
 
-// Funciones Auxiliares
-function obtenerXpTotal(userData) {
-  return userData ? userData.xp : 0;
-}
+// ===================================================
+// 3. CONFIGURACIÓN DE CANALES OCULTOS
+// Colocá aquí las IDs de los canales que estarán bloquiados al inicio.
+// (Asegurate que en Discord @everyone NO tenga permiso de ver estos canales)
+// ===================================================
+const POOL_CANALES_OCULTOS = [
+  'ID_DEL_CANAL_SECRETO_1',
+  'ID_DEL_CANAL_SECRETO_2',
+  'ID_DEL_CANAL_SECRETO_3',
+  'ID_DEL_CANAL_SECRETO_4',
+  'ID_DEL_CANAL_SECRETO_5'
+];
 
-function restarXpTotal(userData, cantidad) {
-  if (userData) {
-    userData.xp = Math.max(0, userData.xp - cantidad);
-  }
-}
-
-// 3. Registro de Comandos Slash
+// 4. Registrar Comandos Slash
 client.once('ready', async () => {
-  console.log(`🤖 Bot iniciado como ${client.user.tag}`);
+  console.log(`🔥 ERIS resucitada y lista como ${client.user.tag}`);
 
   const commands = [
     new SlashCommandBuilder()
       .setName('maldicion')
-      .setDescription('Tira una maldición usando tu XP')
-      .addStringOption(option =>
-        option.setName('tipo')
-          .setDescription('Tipo de maldición')
-          .setRequired(true)
-          .addChoices(
-            { name: '👻 Susto (1,000 XP)', value: 'susto' },
-            { name: '🤡 Apodo Feo (1,500 XP)', value: 'apodo' },
-            { name: '💸 Robo de XP (2,000 XP)', value: 'robo' }
-          )
-      )
-      .addUserOption(option =>
-        option.setName('victima')
-          .setDescription('Usuario al que le vas a tirar la maldición')
-          .setRequired(true)
-      )
-      .addStringOption(option =>
-        option.setName('nuevo_apodo')
-          .setDescription('Apodo feo para la víctima (solo si elegiste Apodo)')
-          .setRequired(false)
-      )
+      .setDescription('Desata el caos de ERIS sobre un usuario usando XP')
+      .addUserOption(opt => 
+        opt.setName('victima')
+           .setDescription('El pisado que va a sufrir la maldición')
+           .setRequired(true))
+      .addStringOption(opt =>
+        opt.setName('tipo')
+           .setDescription('Elige la maldición')
+           .setRequired(true)
+           .addChoices(
+             { name: '👻 Susto de Ultratumba (1,000 XP)', value: 'susto' },
+             { name: '🤡 Apodo Humillante (1,500 XP)', value: 'apodo' },
+             { name: '💸 Robo de XP (2,000 XP)', value: 'robo' }
+           ))
+      .addStringOption(opt =>
+        opt.setName('nuevo_apodo')
+           .setDescription('El apodo feo (Solo para la maldición de apodo)')
+           .setRequired(false))
   ];
 
   try {
     await client.application.commands.set(commands);
-    console.log('✅ Comando /maldicion registrado nitidez.');
-  } catch (err) {
-    console.error('❌ Clavo al registrar comandos:', err);
+    console.log('✅ ERIS: Comando /maldicion registrado nitidez.');
+  } catch (error) {
+    console.error('❌ ERIS: Clavo al subir comandos:', error);
   }
 });
 
-// 4. Lógica de Interacciones / Comandos
+// ===================================================
+// 5. SISTEMA DE DÍAS ACTIVOS Y DESBLOQUEO DE CANALES
+// ===================================================
+client.on('messageCreate', async (message) => {
+  if (message.author.bot || !message.guild) return;
+
+  const userId = message.author.id;
+  const guildId = message.guild.id;
+
+  try {
+    let userData = await ErisUser.findOne({ userId, guildId });
+    if (!userData) {
+      userData = new ErisUser({ userId, guildId });
+    }
+
+    const hoy = new Date();
+    const ultima = userData.ultimaActividad ? new Date(userData.ultimaActividad) : null;
+
+    // Verificar si es un día nuevo
+    const esDiferenteDia = !ultima || 
+      hoy.getFullYear() !== ultima.getFullYear() ||
+      hoy.getMonth() !== ultima.getMonth() ||
+      hoy.getDate() !== ultima.getDate();
+
+    if (esDiferenteDia) {
+      userData.diasActivos += 1;
+      userData.ultimaActividad = hoy;
+
+      // Buscar qué canales del pool TODAVÍA no ha desbloqueado el usuario
+      const canalesDisponibles = POOL_CANALES_OCULTOS.filter(
+        idCanal => !userData.canalesDesbloqueados.includes(idCanal)
+      );
+
+      // Si todavía le quedan canales por desbloquear
+      if (canalesDisponibles.length > 0) {
+        // Seleccionar uno completametne aleatorio
+        const canalRandomId = canalesDisponibles[Math.floor(Math.random() * canalesDisponibles.length)];
+        const canalTarget = message.guild.channels.cache.get(canalRandomId);
+
+        if (canalTarget) {
+          // Darle permiso explícito al usuario en ese canal de Discord
+          await canalTarget.permissionOverwrites.edit(userId, {
+            ViewChannel: true,
+            SendMessages: true
+          });
+
+          // Guardar en la base de datos
+          userData.canalesDesbloqueados.push(canalRandomId);
+
+          await message.channel.send(
+            `🔓 ¡**${message.author.username}** cumplió **${userData.diasActivos} día(s) activo(s)**! ERIS te desbloqueó un canal secreto aleatorio: ${canalTarget} 👀 > < :v`
+          );
+        }
+      }
+
+      await userData.save();
+    }
+  } catch (err) {
+    console.error('❌ Clavo al procesar la racha de ERIS:', err);
+  }
+});
+
+// ===================================================
+// 6. LÓGICA DE LAS MALDICIONES (/maldicion)
+// ===================================================
 client.on('interactionCreate', async (interaction) => {
   if (!interaction.isChatInputCommand()) return;
+  if (interaction.commandName !== 'maldicion') return;
 
-  if (interaction.commandName === 'maldicion') {
-    try {
-      await interaction.deferReply();
+  try {
+    await interaction.deferReply();
 
-      const tipo = interaction.options.getString('tipo');
-      const victimaUser = interaction.options.getUser('victima');
-      const victimaMember = interaction.options.getMember('victima');
-      const atacante = interaction.member;
+    const victimaUser = interaction.options.getUser('victima');
+    const victimaMember = interaction.options.getMember('victima');
+    const tipo = interaction.options.getString('tipo');
+    const nuevoApodo = interaction.options.getString('nuevo_apodo');
+    const atacante = interaction.member;
+    const guildId = interaction.guildId;
 
-      if (!victimaUser) {
-        await interaction.editReply('Puchica maje, tenes que seleccionar a una victima valida.');
-        return;
+    if (victimaUser.bot) return await interaction.editReply('Nee maje, no podes maldecir bots > < :v');
+    if (victimaUser.id === atacante.id) return await interaction.editReply('¿Te vas a maldecir vos solo? No seas cerote chei.');
+
+    let atacanteData = await ErisUser.findOne({ userId: atacante.id, guildId });
+    let victimaData = await ErisUser.findOne({ userId: victimaUser.id, guildId });
+
+    if (!atacanteData) atacanteData = new ErisUser({ userId: atacante.id, guildId });
+    if (!victimaData) victimaData = new ErisUser({ userId: victimaUser.id, guildId });
+
+    // --- MALDICIÓN 1: SUSTO (1,000 XP) ---
+    if (tipo === 'susto') {
+      const COSTO = 1000;
+      if (atacanteData.xp < COSTO) {
+        return await interaction.editReply(`Estás mudo de XP maje. Necesitás **${COSTO} XP** y solo tenés **${atacanteData.xp} XP**.`);
       }
 
-      const guildId = interaction.guild?.id;
+      const gifs = [
+        'https://media.giphy.com/media/3o7TKSjRrfIPjeiVyM/giphy.gif',
+        'https://media.tenor.com/tenor_gif994271863456769054.gif',
+        'https://media.tenor.com/tenor_gif3871427466295745202.gif'
+      ];
 
-      if (victimaUser.bot) {
-        await interaction.editReply('Puchica maje, no podes maldecir a un bot > < :v');
-        return;
+      atacanteData.xp -= COSTO;
+      await atacanteData.save();
+
+      const embed = new EmbedBuilder()
+        .setTitle('👻 ¡LA MALDICIÓN DE ERIS CAYÓ SOBRE TI!')
+        .setDescription(`¡**${victimaUser}**, **${atacante.user.username}** gastó 1,000 XP para mandarte un susto cerote! 🎃⚡`)
+        .setColor('#992d22')
+        .setImage(gifs[Math.floor(Math.random() * gifs.length)]);
+
+      return await interaction.editReply({ content: `${victimaUser}`, embeds: [embed] });
+    }
+
+    // --- MALDICIÓN 2: APODO (1,500 XP) ---
+    if (tipo === 'apodo') {
+      const COSTO = 1500;
+      const apodoPuesto = nuevoApodo || 'Maje Maldito 🤡';
+
+      if (atacanteData.xp < COSTO) {
+        return await interaction.editReply(`Necesitás **${COSTO} XP** para esta mierda.`);
       }
 
-      if (victimaUser.id === atacante.id) {
-        await interaction.editReply('¿Te vas a maldecir a vos mismo? No seas mero tronco chei.');
-        return;
-      }
-
-      let atacanteData = await UserXP.findOne({ userId: atacante.id, guildId });
-      let victimaData = await UserXP.findOne({ userId: victimaUser.id, guildId });
-
-      if (!atacanteData) atacanteData = new UserXP({ userId: atacante.id, guildId, xp: 0, level: 1 });
-      if (!victimaData) victimaData = new UserXP({ userId: victimaUser.id, guildId, xp: 0, level: 1 });
-
-      const xpAtacante = obtenerXpTotal(atacanteData);
-
-      // --- MALDICIÓN 1: SUSTO (1,000 XP) ---
-      if (tipo === 'susto') {
-        const PRECIO = 1000;
-        if (xpAtacante < PRECIO) {
-          await interaction.editReply(`No te alcanza la XP maje. Necesitás ${PRECIO} XP y solo tenés ${xpAtacante}.`);
-          return;
-        }
-
-        const gifsSusto = [
-          'https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExbnE2YmZ1M3p1b3JpbmJ5Z3J3NWkyeXJpZHl4Zm9hdWV0YXJuaCZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/3o7TKSjRrfIPjeiVyM/giphy.gif',
-          'https://media.tenor.com/tenor_gif994271863456769054.gif',
-          'https://media.tenor.com/tenor_gif3871427466295745202.gif',
-          'https://media.tenor.com/tenor_gif5250529173064976480.gif',
-          'https://media.tenor.com/tenor_gif1626678246351226625.gif',
-          'https://media.tenor.com/tenor_gif7555269827273584090.gif',
-          'https://media.tenor.com/tenor_gif6368330273635636205.gif'
-        ];
-
-        const gifElegido = gifsSusto[Math.floor(Math.random() * gifsSusto.length)];
-
-        restarXpTotal(atacanteData, PRECIO);
+      try {
+        await victimaMember.setNickname(apodoPuesto);
+        atacanteData.xp -= COSTO;
         await atacanteData.save();
 
-        const embedSusto = new EmbedBuilder()
-          .setTitle('👻 ¡UNA MALDICIÓN HA CAÍDO SOBRE TI!')
-          .setDescription(`**${victimaUser}**, las sombras de Eris te persiguen... ¡**${atacante.user.username}** pagó 1,000 XP para pegarte un susto de Halloween! 🎃⚡`)
-          .setColor('#8B0000')
-          .setImage(gifElegido);
-
-        await interaction.editReply({ content: `${victimaUser}`, embeds: [embedSusto] });
-      }
-
-      // --- MALDICIÓN 2: APODO FEO (1,500 XP) ---
-      else if (tipo === 'apodo') {
-        const PRECIO = 1500;
-        const nuevoApodo = interaction.options.getString('nuevo_apodo') || 'Maje Maldito 🤡';
-
-        if (xpAtacante < PRECIO) {
-          await interaction.editReply(`No tenés suficiente XP. Necesitás ${PRECIO} XP para cambiarle el apodo a alguien.`);
-          return;
-        }
-
-        if (!victimaMember) {
-          await interaction.editReply('No pude encontrar a ese usuario en el servidor para cambiarle el apodo.');
-          return;
-        }
-
-        try {
-          await victimaMember.setNickname(nuevoApodo);
-          restarXpTotal(atacanteData, PRECIO);
-          await atacanteData.save();
-
-          await interaction.editReply(`🤡 **¡MALDICIÓN APLICADA!** Eris le ha cambiado el apodo a **${victimaUser.username}** por **"${nuevoApodo}"**.`);
-        } catch (err) {
-          await interaction.editReply('Puchica, no pude cambiarle el apodo. Revisá si el bot tiene permisos de *Manage Nicknames* y si está por encima del usuario.');
-        }
-      }
-
-      // --- MALDICIÓN 3: ROBO DE XP (2,000 XP) ---
-      else if (tipo === 'robo') {
-        const PRECIO = 2000;
-        if (xpAtacante < PRECIO) {
-          await interaction.editReply(`Para intentar un robo necesitás invertir ${PRECIO} XP.`);
-          return;
-        }
-
-        const xpVictima = obtenerXpTotal(victimaData);
-        if (xpVictima < 300) {
-          await interaction.editReply('Ese maje está re pobre de XP, no vale la pena ni robarle.');
-          return;
-        }
-
-        const xpRobada = Math.floor(Math.random() * (800 - 300 + 1)) + 300;
-        const cantidadRealRobada = Math.min(xpRobada, xpVictima);
-
-        restarXpTotal(atacanteData, PRECIO);
-        atacanteData.xp += cantidadRealRobada;
-
-        restarXpTotal(victimaData, cantidadRealRobada);
-
-        await atacanteData.save();
-        await victimaData.save();
-
-        await interaction.editReply(`💸 **¡ROBO INTERGALÁCTICO!** **${atacante.user.username}** le robó **${cantidadRealRobada} XP** a **${victimaUser.username}**.`);
-      }
-    } catch (error) {
-      console.error('❌ Error ejecutando la maldición:', error);
-      if (interaction.deferred || interaction.replied) {
-        await interaction.editReply('Puchica maje, ocurrió un clavo interno al tirar la maldición.');
+        return await interaction.editReply(`🤡 ¡**MALDICIÓN APLICADA**! ERIS le cambió el apodo a **${victimaUser.username}** por **"${apodoPuesto}"**.`);
+      } catch (e) {
+        return await interaction.editReply('Puchica, no pude cambiarle el apodo. Revisá si el rol de ERIS está arriba del usuario y tiene permisos de *Manage Nicknames*.');
       }
     }
+
+    // --- MALDICIÓN 3: ROBO DE XP (2,000 XP) ---
+    if (tipo === 'robo') {
+      const COSTO = 2000;
+
+      if (atacanteData.xp < COSTO) {
+        return await interaction.editReply(`Para intentar un robo necesitás apostar **${COSTO} XP**.`);
+      }
+
+      if (victimaData.xp < 300) {
+        return await interaction.editReply('Ese pisado está más pobre que uno, ni vale la pena robarle.');
+      }
+
+      const robado = Math.floor(Math.random() * (700 - 300 + 1)) + 300;
+      const realRobo = Math.min(robado, victimaData.xp);
+
+      atacanteData.xp = (atacanteData.xp - COSTO) + realRobo;
+      victimaData.xp -= realRobo;
+
+      await atacanteData.save();
+      await victimaData.save();
+
+      return await interaction.editReply(`💸 ¡**ROBO COMPLETADO**! **${atacante.user.username}** le robó **${realRobo} XP** a **${victimaUser.username}**.`);
+    }
+
+  } catch (error) {
+    console.error('❌ Error en el comando de ERIS:', error);
+    if (interaction.deferred) await interaction.editReply('Puchica Pepo, saltó un clavo con la maldición.');
   }
 });
 
-// 5. Iniciar Sesión con el Token de ERIS
-client.login(process.env.DISCORD_TOKEN_ERIS);
-          
+client.login(process.env.DISCORD_TOKEN);
+        
