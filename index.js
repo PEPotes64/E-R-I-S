@@ -35,16 +35,33 @@ const erisUserSchema = new mongoose.Schema({
 const ErisUser = mongoose.model('ErisUser', erisUserSchema);
 
 // ===================================================
-// 3. CONFIGURACIÓN DE CANALES OCULTOS
-// Colocá aquí las IDs de los canales que estarán bloquiados al inicio.
-// (Asegurate que en Discord @everyone NO tenga permiso de ver estos canales)
+// CONFIGURACIÓN DE CANALES OCULTOS DE ERIS
 // ===================================================
 const POOL_CANALES_OCULTOS = [
-  'ID_DEL_CANAL_SECRETO_1',
-  'ID_DEL_CANAL_SECRETO_2',
-  'ID_DEL_CANAL_SECRETO_3',
-  'ID_DEL_CANAL_SECRETO_4',
-  'ID_DEL_CANAL_SECRETO_5'
+  '1538617880520826880',
+  '1346670096789278730',
+  '1456350480484532416',
+  '1447323114324103269',
+  '1445238082122154045',
+  '1452110210176126986',
+  '1445443527982186568',
+  '1373118710411169953',
+  '1373302270107586784',
+  '1456351873010241737',
+  '1540482635569168495',
+  '1422796615604899841',
+  '1336314516979318786',
+  '1336712258721419275',
+  '1360807051504386068',
+  '1457873660856631438',
+  '1456716609975750698',
+  '1456354566055657523',
+  '1456354934693036207',
+  '1538630184272666624',
+  '1388348972825055313',
+  '1337067080058671157',
+  '1347060414097264641',
+  '1456351572777766985'
 ];
 
 // 4. Registrar Comandos Slash
