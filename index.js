@@ -228,12 +228,14 @@ const guildId = interaction.guildId; // <--- ESTE NUNCA FALLA EN SERVIDORES
       if (xpTotalAtacante < COSTO) {
         return await interaction.editReply(`Estás mudo de XP maje. Necesitás **${COSTO} XP** y solo tenés **${xpTotalAtacante} XP**.`);
       }
-
-      // Links d Imgur k NUNCA fallan en Discord Pepo
+      
+      // GIFs d susto elegidos por Pepo :v
       const gifs = [
-        'https://i.imgur.com/6N0318r.gif',
-        'https://i.imgur.com/H8M1X41.gif',
-        'https://i.imgur.com/W3Q4M2l.gif'
+        'https://media3.giphy.com/media/v1.Y2lkPTZjMDliOTUyNHdzMDFtdnUzcWJwcmpvODVpMnFheGIzbHNnMzh5NXpwZjZ5dDUxNCZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/T39By0uZSaAjSYaF9B/giphy.gif',
+        'https://media3.giphy.com/media/v1.Y2lkPTZjMDliOTUyMnFtMzJ2YWl1M2t1b2FwczFtOHFtd2w0enQyaGF4bzZoOGV0aWVqZiZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/cYqhkF6jUFXvHfnOt4/giphy.gif',
+        'https://media1.giphy.com/media/v1.Y2lkPTZjMDliOTUyOW5uZ3ltNmM2dDAzYnFndnZhamV2NXczaG15ZDNyNTdiMHFyeWZyayZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/QsgJi30B9ByH7tRhGV/giphy.gif',
+        'https://media4.giphy.com/media/v1.Y2lkPTZjMDliOTUyOG45ZXB3dGZyb3dwdXBhajRzZmkyeTZ2YTlzN292a21wa2xjaGt4MyZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/4R8pzQboylfva/giphy.gif'
+        
       ];
 
       const gifElegido = gifs[Math.floor(Math.random() * gifs.length)];
