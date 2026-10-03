@@ -222,7 +222,7 @@ const guildId = interaction.guildId; // <--- ESTE NUNCA FALLA EN SERVIDORES
     // Calculamos el XP total tomando en cuenta los niveles de Zeus
     const xpTotalAtacante = obtenerXpTotal(atacanteData);
 
-    // --- MALDICION 1: SUSTO (1,000 XP) ---
+        // --- MALDICION 1: SUSTO (1,000 XP) ---
     if (tipo === 'susto') {
       const COSTO = 1000;
       if (xpTotalAtacante < COSTO) {
@@ -231,8 +231,8 @@ const guildId = interaction.guildId; // <--- ESTE NUNCA FALLA EN SERVIDORES
 
       const gifs = [
         'https://media.giphy.com/media/3o7TKSjRRFIPjeiKyM/giphy.gif',
-        'https://media.tenor.com/tenor_gif994273863456769154.gif',
-        'https://media.tenor.com/gif3071823061295705202.gif'
+        'https://i.gifer.com/PYh.gif',
+        'https://media.giphy.com/media/14ut81m5UX3rAn/giphy.gif'
       ];
 
       recalcularProgreso(atacanteData, xpTotalAtacante - COSTO);
@@ -240,12 +240,13 @@ const guildId = interaction.guildId; // <--- ESTE NUNCA FALLA EN SERVIDORES
 
       const embed = new EmbedBuilder()
         .setTitle('💀 ¡LA MALDICIÓN DE ERIS CAYÓ SOBRE TI!')
-        .setDescription(`**<@${victimaUser.id}>**, **${atacanteUser.username}** gastó 1,000 XP para mandarte un susto cerote!`)
+        .setDescription(`<@${victimaUser.id}>, **${atacanteUser.username}** gastó 1,000 XP para mandarte un susto cerote!`)
         .setColor('#990000')
         .setImage(gifs[Math.floor(Math.random() * gifs.length)]);
 
       return await interaction.editReply({ content: `<@${victimaUser.id}>`, embeds: [embed] });
     }
+    
 
     // --- MALDICION 2: APODO (1,500 XP) ---
     if (tipo === 'apodo') {
