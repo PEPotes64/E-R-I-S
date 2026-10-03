@@ -206,8 +206,8 @@ client.on('interactionCreate', async (interaction) => {
     
     // Usamos el User directo para que nunca venga nulo ni de clavo
     const atacanteUser = interaction.user;
-    const guildId = interaction.guild ? interaction.guild.id : null;
-
+const guildId = interaction.guildId; // <--- ESTE NUNCA FALLA EN SERVIDORES
+    
     if (!guildId) return await interaction.editReply('Esta mierda solo funciona dentro del servidor Pepo :v');
     if (!victimaUser) return await interaction.editReply('No encontre a ese pisado :v');
     if (victimaUser.bot) return await interaction.editReply('Nee maje, no podes maldecir bots :v');
