@@ -229,11 +229,14 @@ const guildId = interaction.guildId; // <--- ESTE NUNCA FALLA EN SERVIDORES
         return await interaction.editReply(`Estás mudo de XP maje. Necesitás **${COSTO} XP** y solo tenés **${xpTotalAtacante} XP**.`);
       }
 
+      // Links d Imgur k NUNCA fallan en Discord Pepo
       const gifs = [
-        'https://media.giphy.com/media/3o7TKSjRRFIPjeiKyM/giphy.gif',
-        'https://i.gifer.com/PYh.gif',
-        'https://media.giphy.com/media/14ut81m5UX3rAn/giphy.gif'
+        'https://i.imgur.com/6N0318r.gif',
+        'https://i.imgur.com/H8M1X41.gif',
+        'https://i.imgur.com/W3Q4M2l.gif'
       ];
+
+      const gifElegido = gifs[Math.floor(Math.random() * gifs.length)];
 
       recalcularProgreso(atacanteData, xpTotalAtacante - COSTO);
       await atacanteData.save();
@@ -242,11 +245,10 @@ const guildId = interaction.guildId; // <--- ESTE NUNCA FALLA EN SERVIDORES
         .setTitle('💀 ¡LA MALDICIÓN DE ERIS CAYÓ SOBRE TI!')
         .setDescription(`<@${victimaUser.id}>, **${atacanteUser.username}** gastó 1,000 XP para mandarte un susto cerote!`)
         .setColor('#990000')
-        .setImage(gifs[Math.floor(Math.random() * gifs.length)]);
+        .setImage(gifElegido);
 
       return await interaction.editReply({ content: `<@${victimaUser.id}>`, embeds: [embed] });
     }
-    
 
     // --- MALDICION 2: APODO (1,500 XP) ---
     if (tipo === 'apodo') {
