@@ -1,11 +1,21 @@
-const { 
-  Client, 
-  GatewayIntentBits, 
-  EmbedBuilder, 
+const {
+  Client,
+  GatewayIntentBits,
+  EmbedBuilder,
   SlashCommandBuilder,
-  PermissionFlagsBits 
+  PermissionFlagsBits
 } = require('discord.js');
 const mongoose = require('mongoose');
+const http = require('http'); // <-- AGREGÁS ESTA LINEA AKI :v
+
+// --- TRAMPA DE PUERTO PARA QUE RENDER NO JODA ---
+const PORT = process.env.PORT || 3000;
+http.createServer((req, res) => {
+  res.writeHead(200, { 'Content-Type': 'text/plain' });
+  res.end('Eris ta viva y coleando Pepo :v');
+}).listen(PORT, () => {
+  console.log(`trampa de puerto jalando nitido en el puerto ${PORT} :v`);
+});
 
 // 1. Inicialización de ERIS
 const client = new Client({
