@@ -203,16 +203,20 @@ client.on('interactionCreate', async (interaction) => {
     const victimaMember = interaction.options.getMember('victima');
     const tipo = interaction.options.getString('tipo');
     const nuevoApodo = interaction.options.getString('nuevo_apodo');
-    const atacante = interaction.member;
-    const guildId = interaction.guild.id;
+    
+    // Usamos el User directo para que nunca venga nulo ni de clavo
+    const atacanteUser = interaction.user;
+    const guildId = interaction.guild ? interaction.guild.id : null;
 
+    if (!guildId) return await interaction.editReply('Esta mierda solo funciona dentro del servidor Pepo :v');
+    if (!victimaUser) return await interaction.editReply('No encontre a ese pisado :v');
     if (victimaUser.bot) return await interaction.editReply('Nee maje, no podes maldecir bots :v');
-    if (victimaUser.id === atacante.id) return await interaction.editReply('¿Te vas a maldecir vos solo? No seas cerote :v');
+    if (victimaUser.id === atacanteUser.id) return await interaction.editReply('¿Te vas a maldecir vos solo? No seas cerote :v');
 
-    let atacanteData = await ErisUser.findOne({ userId: atacante.id, guildId });
+    let atacanteData = await ErisUser.findOne({ userId: atacanteUser.id, guildId });
     let victimaData = await ErisUser.findOne({ userId: victimaUser.id, guildId });
 
-    if (!atacanteData) atacanteData = new ErisUser({ userId: atacante.id, guildId });
+    if (!atacanteData) atacanteData = new ErisUser({ userId: atacanteUser.id, guildId });
     if (!victimaData) victimaData = new ErisUser({ userId: victimaUser.id, guildId });
 
     // Calculamos el XP total tomando en cuenta los niveles de Zeus
@@ -236,7 +240,7 @@ client.on('interactionCreate', async (interaction) => {
 
       const embed = new EmbedBuilder()
         .setTitle('💀 ¡LA MALDICIÓN DE ERIS CAYÓ SOBRE TI!')
-        .setDescription(`**<@${victimaUser.id}>**, **${atacante.user.username}** gastó 1,000 XP para mandarte un susto cerote!`)
+        .setDescription(`**<@${victimaUser.id}>**, **${atacanteUser.username}** gastó 1,000 XP para mandarte un susto cerote!`)
         .setColor('#990000')
         .setImage(gifs[Math.floor(Math.random() * gifs.length)]);
 
@@ -253,13 +257,14 @@ client.on('interactionCreate', async (interaction) => {
       }
 
       try {
+        if (!victimaMember) throw new Error('No member');
         await victimaMember.setNickname(apodoPuesto);
         recalcularProgreso(atacanteData, xpTotalAtacante - COSTO);
         await atacanteData.save();
 
-        return await interaction.editReply(`💀 **${atacante.user.username}** le cambió el apodo a **<@${victimaUser.id}>** a **"${apodoPuesto}"** por mala nota :v`);
+        return await interaction.editReply(`💀 **${atacanteUser.username}** le cambió el apodo a **<@${victimaUser.id}>** a **"${apodoPuesto}"** por mala nota :v`);
       } catch (e) {
-        return await interaction.editReply(`No pude cambiarle el apodo a ese maje, seguro tiene un rol más alto que el mío :v`);
+        return await interaction.editReply(`No pude cambiarle el apodo a ese maje, seguro tiene un rol más alto que el mío o no esta en la cache :v`);
       }
     }
 
@@ -288,7 +293,7 @@ client.on('interactionCreate', async (interaction) => {
         await atacanteData.save();
         await victimaData.save();
 
-        return await interaction.editReply(`⚔️ **¡ROBO COMPLETADO!** **${atacante.user.username}** le robó **${realRobo} XP** a **<@${victimaUser.id}>**! 🎉`);
+        return await interaction.editReply(`⚔️ **¡ROBO COMPLETADO!** **${atacanteUser.username}** le robó **${realRobo} XP** a **<@${victimaUser.id}>**! 🎉`);
       } else {
         recalcularProgreso(atacanteData, xpTotalAtacante - COSTO);
         recalcularProgreso(victimaData, xpTotalVictima + 500);
@@ -296,7 +301,7 @@ client.on('interactionCreate', async (interaction) => {
         await atacanteData.save();
         await victimaData.save();
 
-        return await interaction.editReply(`❌ **¡ROBO FALLIDO!** **${atacante.user.username}** la cagó intentando robar y perdió sus 2000 XP. **<@${victimaUser.id}>** se quedó con 500 XP de recompensa :v`);
+        return await interaction.editReply(`❌ **¡ROBO FALLIDO!** **${atacanteUser.username}** la cagó intentando robar y perdió sus 2000 XP. **<@${victimaUser.id}>** se quedó con 500 XP de recompensa :v`);
       }
     }
 
