@@ -42,7 +42,7 @@ const erisUserSchema = new mongoose.Schema({
   canalesDesbloqueados: [{ type: String }] // Guardamos las IDs de los canales que ya abrió
 });
 
-const ErisUser = mongoose.model('ErisUser', erisUserSchema);
+const ErisUser = mongoose.model('UserXP', erisUserSchema);
 
 // ===================================================
 // CONFIGURACIÓN DE CANALES OCULTOS DE ERIS
