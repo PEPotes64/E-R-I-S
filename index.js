@@ -181,7 +181,11 @@ client.once('ready', async () => {
     console.error('❌ ERIS: Clavo al subir comandos:', error);
   }
 
-  // Seleccionamos a la primera bruja si no hay ninguna activa
+// Seleccionamos a la primera bruja si no hay ninguna activa
+if (BRUJAS_ACTIVAS.length === 0) {
+  await agregarNuevaBruja();
+}
+  
 // REVISION AUTOMATICA (Cada 1 minuto)
 setInterval(async () => {
   const ahora = new Date();
