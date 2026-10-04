@@ -436,7 +436,7 @@ client.on('interactionCreate', async (interaction) => {
 
       const mensajesTerror = [
         "Soy MG, este es mi server, Soy MG, voy a darte admin, Soy MG, vuelvo en 3 años, Soy MG, manten el personaje",
-        "Heliconia porfavor regresa conmigo esto no es Spam, porfavor perdoname, te acuerdas cuando nos quedabamos hablando hasta la medianoche? podemos volver a intentarlo, podemos volver a hacerlo pero porfavor perdoname, te entendere si no quieres",",
+        "Heliconia porfavor regresa conmigo esto no es Spam, porfavor perdoname, te acuerdas cuando nos quedabamos hablando hasta la medianoche? podemos volver a intentarlo, podemos volver a hacerlo pero porfavor perdoname, te entendere si no quieres",
         "ay dios mio, ay dios mio, ay dios- *toc-toc* quien es? soy MG jiji, MG estoy ocupado, que es ese ruido? *abre la puerta* NO MG NO, jiii, con la foto de Jane.C maldito pervertido, ZOMBIE, ZOMBIE🗣️, no, no llames a Zombie, que pasooo🗣️, Pepo que estas haciendo, con la foto de Jane.C maldito Pajero *foto* MG que estas haciendo?, lo voy a subir al server jiji",
         "le mando un saludo a: MG, Pepo, Zombie, Red, Juan, Lava, Jerry digo seta elegante, Acuamenta, Manzana, gipmao, viruzz, ciam, gurus, franco, W D G, santigames, yezan, popcap, EA, Xbox, Playstation, Nintendo, Japon, bomba atomica, Oppenheimer, albert einstein, Jeffry epstein",
         "al chile ya me canse de escfibir tanta jalada asi que si algo esta mal escrito ya al chile me pela 3000 vegas bien grandotas y rixas y asi y no se we alv ke pedo por davor ayuda"
