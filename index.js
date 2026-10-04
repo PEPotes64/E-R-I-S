@@ -11,7 +11,7 @@ const mongoose = require('mongoose');
 const PORT = process.env.PORT || 3000;
 http.createServer((req, res) => {
   res.writeHead(200, { 'Content-Type': 'text/plain' });
-  res.end('Eris ta viva y coleando Pepo :v');
+  res.end('Eris ta viva y lista para el aquelarre Pepo :v');
 }).listen(PORT, () => {
   console.log(`trampa de puerto jalando nitido en el puerto ${PORT} :v`);
 });
@@ -42,7 +42,6 @@ const erisUserSchema = new mongoose.Schema({
   canalesDesbloqueados: [{ type: String }]
 });
 
-// Usamos 'UserXP' para compartir la misma tabla con Zeus :v
 const ErisUser = mongoose.model('UserXP', erisUserSchema);
 
 // --- FUNCIONES MAGICAS DE COMPATIBILIDAD CON ZEUS ---
@@ -70,62 +69,95 @@ function recalcularProgreso(user, xpTotal) {
   user.xp = xpRestante;
 }
 
-// 3. CONFIGURACION DE CANALES OCULTOS DE ERIS
-const POOL_CANALES_OCULTOS = [
-  "1538617880520626880",
-  "1346670096789278730",
-  "1456350408484532416",
-  "1447323114328410326",
-  "1445238082122154045",
-  "1452110210176126986",
-  "1445443527982186568",
-  "137311870411169653",
-  "1373302270107586784",
-  "1456351873010241737",
-  "1540482635569168384",
-  "1422796615604899841",
-  "1336314516970918786",
-  "1336712258721419275",
-  "136007051504386068",
-  "14578736606855631438",
-  "1456716600975575698",
-  "1456354566055657523",
-  "1456354934693036207",
-  "1538630184272666624",
-  "1388348972825055313",
-  "13370670800058671157",
-  "134706041409726464",
-  "145635157277766985"
+// 3. EVENTO DE HALLOWEEN: AQUELARRE DE BRUJAS 🧙‍♀️
+const ROL_BRUJA_ID = "1556126238295203860";
+
+const POOL_CANDIDATOS_BRUJA = [
+  "1173252977042141265",
+  "1115394374369542196",
+  "1271919251418124288",
+  "1242973559454699593",
+  "1176261789810425987",
+  "1321857131988914299",
+  "1106275286112272538",
+  "1473102241694224456",
+  "1290904875198316576"
 ];
 
-// 4. Registrar Comandos Slash y Bloquear Canales al Encender
+let BRUJAS_ACTIVAS = [];
+let registroAtaquesHoy = {};
+let horaInactividadRevisadaHoy = false;
+
+// Verifica si estamos en "La Hora de la Bruja" (6:00 PM a 6:59 PM Guatemala)
+function esHoraDeLaBruja() {
+  const ahora = new Date();
+  const horaGT = parseInt(ahora.toLocaleTimeString('en-US', { timeZone: 'America/Guatemala', hour12: false, hour: '2-digit' }));
+  return horaGT === 18;
+}
+
+// Funcion para nombrar a una nueva Bruja por MD y ponerle el Rol
+async function agregarNuevaBruja() {
+  const disponibles = POOL_CANDIDATOS_BRUJA.filter(id => !BRUJAS_ACTIVAS.includes(id));
+  if (disponibles.length > 0) {
+    const elegida = disponibles[Math.floor(Math.random() * disponibles.length)];
+    BRUJAS_ACTIVAS.push(elegida);
+    console.log(`🧙‍♀️ Nueva bruja seleccionada: ${elegida}`);
+
+    // Ponerle el rol d Bruja en el server
+    client.guilds.cache.forEach(async (guild) => {
+      try {
+        const member = await guild.members.fetch(elegida);
+        if (member) await member.roles.add(ROL_BRUJA_ID);
+      } catch (e) {}
+    });
+
+    try {
+      const userBruja = await client.users.fetch(elegida);
+      await userBruja.send(
+        "🧙‍♀️ **¡SOS LA NUEVA BRUJA DE HALLOWEEN!**\n" +
+        "Felicitaciones cerote. Todos los días de **6:00 PM a 7:00 PM (Hora GT)** tenés `/maldicion` **TOTALMENTE GRATIS (0 XP)**.\n\n" +
+        "⚠️ **REGLAS DE ORO:**\n" +
+        "1. Si no tirás ni una sola maldición entre 6 y 7 PM, ERIS te quita los poderes por mula.\n" +
+        "2. Si revelás tu identidad en el chat o por privado, te cae bozal inmediato y quedás descalificado(a).\n" +
+        "¡Desatá el caos pisado! 💀"
+      );
+    } catch (e) {
+      console.log(`Clavo mandando MD a la bruja ${elegida}:`, e);
+    }
+  }
+}
+
+// 4. CONFIGURACION DE CANALES OCULTOS DE ERIS
+const POOL_CANALES_OCULTOS = [
+  "1538617880520626880", "1346670096789278730", "1456350408484532416",
+  "1447323114328410326", "1445238082122154045", "1452110210176126986",
+  "1445443527982186568", "137311870411169653", "1373302270107586784",
+  "1456351873010241737", "1540482635569168384", "1422796615604899841",
+  "1336314516970918786", "1336712258721419275", "136007051504386068",
+  "14578736606855631438", "1456716600975575698", "1456354566055657523",
+  "1456354934693036207", "1538630184272666624", "1388348972825055313",
+  "13370670800058671157", "134706041409726464", "145635157277766985"
+];
+
 client.once('ready', async () => {
   console.log(`🔥 ERIS resucitada y lista como ${client.user.tag}`);
 
-  // Bloqueo automatico de canales para @everyone
+  // Bloqueo automatico de canales
   for (const canalId of POOL_CANALES_OCULTOS) {
     try {
       const canal = await client.channels.fetch(canalId);
       if (canal) {
-        await canal.permissionOverwrites.edit(canal.guild.id, {
-          ViewChannel: false
-        });
+        await canal.permissionOverwrites.edit(canal.guild.id, { ViewChannel: false });
       }
-    } catch (e) {
-      console.log(`Clavo al bloquear el canal ${canalId}:`, e);
-    }
+    } catch (e) {}
   }
-  console.log('🔒 Canales ocultos bloqueados nitido para @everyone!');
 
+  // Registrar comandos
   const commands = [
     new SlashCommandBuilder()
       .setName('maldicion')
       .setDescription('Desata el caos de ERIS sobre un pisado')
-      .addUserOption(opt =>
-        opt.setName('victima')
-          .setDescription('El pisado que va a sufrir la maldicion')
-          .setRequired(true)
-      )
+      .addUserOption(opt => opt.setName('victima').setDescription('El pisado que va a sufrir').setRequired(true))
       .addStringOption(opt =>
         opt.setName('tipo')
           .setDescription('Elige la maldicion')
@@ -138,22 +170,80 @@ client.once('ready', async () => {
             { name: 'Spam Masivo en MD (3,000 XP)', value: 'spam' }
           )
       )
-      .addStringOption(opt =>
-        opt.setName('nuevo_apodo')
-          .setDescription('El apodo feo (Solo para la maldicion de apodo)')
-          .setRequired(false)
-      )
+      .addStringOption(opt => opt.setName('nuevo_apodo').setDescription('Solo para la maldicion de apodo').setRequired(false))
   ];
 
   try {
     await client.application.commands.set(commands);
-    console.log('✅ ERIS: Comando /maldicion registrado nitidez.');
+    console.log('✅ ERIS: Comandos listos Pepo.');
   } catch (error) {
     console.error('❌ ERIS: Clavo al subir comandos:', error);
   }
+
+  // Seleccionamos a la primera bruja si no hay ninguna activa
+  if (BRUJAS_ACTIVAS.length === 0) {
+    await agregarNuevaBruja();
+  }
+
+  // REVISION AUTOMATICA DE INACTIVIDAD DE LAS BRUJAS (Cada 1 minuto)
+  setInterval(async () => {
+    const ahora = new Date();
+    const horaGT = parseInt(ahora.toLocaleTimeString('en-US', { timeZone: 'America/Guatemala', hour12: false, hour: '2-digit' }));
+
+    // A las 7:00 PM (19 hrs GT) revisamos si la bruja hizo algo
+    if (horaGT === 19 && !horaInactividadRevisadaHoy) {
+      horaInactividadRevisadaHoy = true;
+      console.log('🕯️ 7:00 PM GT: Revisando actividad de las Brujas...');
+
+      for (let i = 0; i < BRUJAS_ACTIVAS.length; i++) {
+        const brujaId = BRUJAS_ACTIVAS[i];
+        if (!registroAtaquesHoy[brujaId] || registroAtaquesHoy[brujaId] === 0) {
+          console.log(`💀 Bruja inactiva sacada: ${brujaId}`);
+
+          // Quitarle el rol d Bruja por vaga
+          client.guilds.cache.forEach(async (guild) => {
+            try {
+              const member = await guild.members.fetch(brujaId);
+              if (member) await member.roles.remove(ROL_BRUJA_ID);
+            } catch (e) {}
+          });
+
+          try {
+            const u = await client.users.fetch(brujaId);
+            await u.send("🤡 **PERDISTE TUS PODERES:** No tiraste ni una sola maldición de 6 a 7 PM, así que ERIS te quitó el rol de Bruja por mula. :v");
+          } catch (e) {}
+
+          // Reemplazar a la bruja hueva
+          const disponibles = POOL_CANDIDATOS_BRUJA.filter(id => !BRUJAS_ACTIVAS.includes(id));
+          if (disponibles.length > 0) {
+            const nueva = disponibles[Math.floor(Math.random() * disponibles.length)];
+            BRUJAS_ACTIVAS[i] = nueva;
+
+            // Ponerle el rol a la nueva bruja
+            client.guilds.cache.forEach(async (guild) => {
+              try {
+                const member = await guild.members.fetch(nueva);
+                if (member) await member.roles.add(ROL_BRUJA_ID);
+              } catch (e) {}
+            });
+
+            try {
+              const uNueva = await client.users.fetch(nueva);
+              await uNueva.send("🧙‍♀️ **¡SOS LA NUEVA BRUJA DE HALLOWEEN!** El cerote anterior no hizo nada de 6 a 7 PM, así que ERIS te dio el poder a vos. Mañana a las 6:00 PM tenés maldiciones gratis. ¡No seas mula y usalas! 💀");
+            } catch (e) {}
+          }
+        }
+      }
+      registroAtaquesHoy = {};
+    }
+
+    if (horaGT === 0) {
+      horaInactividadRevisadaHoy = false; // Reset medianoche
+    }
+  }, 60000);
 });
 
-// 5. SISTEMA DE DIAS ACTIVOS Y DESBLOQUEO DE CANALES (HORA GUATEMALA)
+// 5. SISTEMA DE DIAS ACTIVOS Y DESBLOQUEO DE CANALES
 client.on('messageCreate', async (message) => {
   if (message.author.bot || !message.guild) return;
 
@@ -162,45 +252,30 @@ client.on('messageCreate', async (message) => {
 
   try {
     let userData = await ErisUser.findOne({ userId, guildId });
-    if (!userData) {
-      userData = new ErisUser({ userId, guildId });
-    }
+    if (!userData) userData = new ErisUser({ userId, guildId });
 
     const hoy = new Date();
-    // Forzamos la zona horaria de Guatemala para que no cuente a lo pendejo a las 6pm
     const hoyFecha = hoy.toLocaleDateString('es-GT', { timeZone: 'America/Guatemala' });
     const ultimaFecha = userData.ultimaActividad
       ? new Date(userData.ultimaActividad).toLocaleDateString('es-GT', { timeZone: 'America/Guatemala' })
       : null;
 
-    const esDiferenteDia = hoyFecha !== ultimaFecha;
-
-    if (esDiferenteDia) {
+    if (hoyFecha !== ultimaFecha) {
       userData.diasActivos += 1;
       userData.ultimaActividad = hoy;
 
-      const canalesDisponibles = POOL_CANALES_OCULTOS.filter(
-        idKanal => !userData.canalesDesbloqueados.includes(idKanal)
-      );
+      const canalesDisponibles = POOL_CANALES_OCULTOS.filter(id => !userData.canalesDesbloqueados.includes(id));
 
       if (canalesDisponibles.length > 0) {
         const canalRandomId = canalesDisponibles[Math.floor(Math.random() * canalesDisponibles.length)];
         const canalTarget = message.guild.channels.cache.get(canalRandomId);
 
         if (canalTarget) {
-          await canalTarget.permissionOverwrites.edit(userId, {
-            ViewChannel: true,
-            SendMessages: true
-          });
-
+          await canalTarget.permissionOverwrites.edit(userId, { ViewChannel: true, SendMessages: true });
           userData.canalesDesbloqueados.push(canalRandomId);
-
-          await message.channel.send(
-            `🎉 **${message.author.username}** cumplió **${userData.diasActivos} día(s)** activo(s)! ERIS te desbloqueó un canal secreto.`
-          );
+          await message.channel.send(`🎉 **${message.author.username}** cumplió **${userData.diasActivos} día(s)** activo(s)! ERIS te desbloqueó un canal secreto.`);
         }
       }
-
       await userData.save();
     }
   } catch (err) {
@@ -208,7 +283,7 @@ client.on('messageCreate', async (message) => {
   }
 });
 
-// 6. LOGICA DE LAS MALDICIONES (/maldicion)
+// 6. LOGICA DE LAS MALDICIONES
 client.on('interactionCreate', async (interaction) => {
   if (!interaction.isChatInputCommand()) return;
   if (interaction.commandName !== 'maldicion') return;
@@ -237,9 +312,22 @@ client.on('interactionCreate', async (interaction) => {
 
     const xpTotalAtacante = obtenerXpTotal(atacanteData);
 
-    // --- MALDICION 1: SUSTO (1,000 XP) ---
+    // --- REVISAMOS SI ES BRUJA Y ESTA EN SU HORA DE GLORIA ---
+    const esBruja = BRUJAS_ACTIVAS.includes(atacanteUser.id);
+    const estaEnLaHora = esHoraDeLaBruja();
+    const esGratis = esBruja && estaEnLaHora;
+
+    if (esGratis) {
+      registroAtaquesHoy[atacanteUser.id] = (registroAtaquesHoy[atacanteUser.id] || 0) + 1;
+    }
+
+    function calcularCosto(costoBase) {
+      return esGratis ? 0 : costoBase;
+    }
+
+    // --- 1. SUSTO (1,000 XP) ---
     if (tipo === 'susto') {
-      const COSTO = 1000;
+      const COSTO = calcularCosto(1000);
       if (xpTotalAtacante < COSTO) {
         return await interaction.editReply(`Estás mudo de XP maje. Necesitás **${COSTO} XP** y solo tenés **${xpTotalAtacante} XP**.`);
       }
@@ -247,27 +335,25 @@ client.on('interactionCreate', async (interaction) => {
       const gifs = [
         'https://media3.giphy.com/media/v1.Y2lkPTZjMDliOTUyNHdzMDFtdnUzcWJwcmpvODVpMnFheGIzbHNnMzh5NXpwZjZ5dDUxNCZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/T39By0uZSaAjSYaF9B/giphy.gif',
         'https://media3.giphy.com/media/v1.Y2lkPTZjMDliOTUyMnFtMzJ2YWl1M2t1b2FwczFtOHFtd2w0enQyaGF4bzZoOGV0aWVqZiZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/cYqhkF6jUFXvHfnOt4/giphy.gif',
-        'https://media1.giphy.com/media/v1.Y2lkPTZjMDliOTUyOW5uZ3ltNmM2dDAzYnFndnZhamV2NXczaG15ZDNyNTdiMHFyeWZyayZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/QsgJi30B9ByH7tRhGV/giphy.gif',
+        'https://media1.giphy.com/media/v1.Y2lkPTZjMDliOTUyNW5uZ3ltNmM2dDAzYnFndnZhamV2NXczaG15ZDNyNTdiMHFyeWZyayZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/QsgJi30B9ByH7tRhGV/giphy.gif',
         'https://media4.giphy.com/media/v1.Y2lkPTZjMDliOTUyOG45ZXB3dGZyb3dwdXBhajRzZmkyeTZ2YTlzN292a21wa2xjaGt4MyZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/4R8pzQboylfva/giphy.gif'
       ];
-
-      const gifElegido = gifs[Math.floor(Math.random() * gifs.length)];
 
       recalcularProgreso(atacanteData, xpTotalAtacante - COSTO);
       await atacanteData.save();
 
       const embed = new EmbedBuilder()
         .setTitle('💀 ¡LA MALDICIÓN DE ERIS CAYÓ SOBRE TI!')
-        .setDescription(`<@${victimaUser.id}>, **${atacanteUser.username}** gastó 1,000 XP para mandarte un susto cerote!`)
+        .setDescription(`<@${victimaUser.id}>, **${atacanteUser.username}** te mandó un susto cerote!`)
         .setColor('#990000')
-        .setImage(gifElegido);
+        .setImage(gifs[Math.floor(Math.random() * gifs.length)]);
 
       return await interaction.editReply({ content: `<@${victimaUser.id}>`, embeds: [embed] });
     }
 
-    // --- MALDICION 2: APODO (1,500 XP) ---
+    // --- 2. APODO (1,500 XP) ---
     if (tipo === 'apodo') {
-      const COSTO = 1500;
+      const COSTO = calcularCosto(1500);
       const apodoPuesto = nuevoApodo || 'Maje Maldito 🤡';
 
       if (xpTotalAtacante < COSTO) {
@@ -282,13 +368,13 @@ client.on('interactionCreate', async (interaction) => {
 
         return await interaction.editReply(`💀 **${atacanteUser.username}** le cambió el apodo a **<@${victimaUser.id}>** por **"${apodoPuesto}"**!`);
       } catch (e) {
-        return await interaction.editReply(`No pude cambiarle el apodo a esa mara, seguro tiene mas jerarquia k yo o soy mula :v`);
+        return await interaction.editReply(`No pude cambiarle el apodo a esa mara, seguro tiene mas jerarquia k yo :v`);
       }
     }
 
-    // --- MALDICION 3: ROBO DE XP (2,000 XP) ---
+    // --- 3. ROBO DE XP (2,000 XP) ---
     if (tipo === 'robo') {
-      const COSTO = 2000;
+      const COSTO = calcularCosto(2000);
       if (xpTotalAtacante < COSTO) {
         return await interaction.editReply('Para intentar un robo necesitás 2,000 XP maje.');
       }
@@ -300,31 +386,28 @@ client.on('interactionCreate', async (interaction) => {
 
       const robado = Math.floor(Math.random() * (700 - 300 + 1)) + 300;
       const realRobo = Math.min(robado, xpTotalVictima);
-
       const exito = Math.random() < 0.5;
 
       if (exito) {
         recalcularProgreso(atacanteData, xpTotalAtacante - COSTO + realRobo);
         recalcularProgreso(victimaData, xpTotalVictima - realRobo);
-
         await atacanteData.save();
         await victimaData.save();
 
-        return await interaction.editReply(`⚔️ **¡ROBO COMPLETADO!** **${atacanteUser.username}** le robo **${realRobo} XP** a **<@${victimaUser.id}>**!`);
+        return await interaction.editReply(`⚔️ **¡ROBO COMPLETADO!** **${atacanteUser.username}** le robó **${realRobo} XP** a **<@${victimaUser.id}>**!`);
       } else {
         recalcularProgreso(atacanteData, xpTotalAtacante - COSTO);
         recalcularProgreso(victimaData, xpTotalVictima + 500);
-
         await atacanteData.save();
         await victimaData.save();
 
-        return await interaction.editReply(`❌ **¡ROBO FALLIDO!** **${atacanteUser.username}** comio mierda intentando robarle a **<@${victimaUser.id}>** y le regaló 500 XP :v`);
+        return await interaction.editReply(`❌ **¡ROBO FALLIDO!** **${atacanteUser.username}** comió mierda intentando robarle a **<@${victimaUser.id}>** y le regaló 500 XP :v`);
       }
     }
 
-    // --- MALDICION 4: SILENCIAR / BOZAL (2,500 XP) ---
+    // --- 4. SILENCIAR / BOZAL (2,500 XP) ---
     if (tipo === 'silenciar') {
-      const COSTO = 2500;
+      const COSTO = calcularCosto(2500);
       if (xpTotalAtacante < COSTO) {
         return await interaction.editReply(`Para meterle bozal a un pisado necesitás **${COSTO} XP** y solo tenés **${xpTotalAtacante} XP**.`);
       }
@@ -333,44 +416,42 @@ client.on('interactionCreate', async (interaction) => {
         const objetivo = await interaction.guild.members.fetch(victimaUser.id);
         if (!objetivo) throw new Error('No member');
 
-        // Silenciar por 1 hora (3,600,000 ms)
         await objetivo.timeout(60 * 60 * 1000, 'Maldición de ERIS: Silenciado por 1 hora');
 
         recalcularProgreso(atacanteData, xpTotalAtacante - COSTO);
         await atacanteData.save();
 
-        return await interaction.editReply(`🤐 **¡BOZAL PUESTO!** **${atacanteUser.username}** gastó 2,500 XP y le metió un bozal a **<@${victimaUser.id}>** por 1 hora completa. ¡A chillar a la llorona pisado! :v`);
+        return await interaction.editReply(`🤐 **¡BOZAL PUESTO!** **${atacanteUser.username}** le metió un bozal a **<@${victimaUser.id}>** por 1 hora completa. ¡A chillar a la llorona pisado! :v`);
       } catch (e) {
-        return await interaction.editReply(`No pude silenciar a ese cerote, seguro tiene mas jerarquia k yo o me faltan permisos d moderador mano :v`);
+        return await interaction.editReply(`No pude silenciar a ese cerote, seguro tiene mas jerarquia k yo o me faltan permisos mano :v`);
       }
     }
 
-    // --- MALDICION 5: SPAM EN MD (3,000 XP) ---
+    // --- 5. SPAM EN MD (3,000 XP) ---
     if (tipo === 'spam') {
-      const COSTO = 3000;
+      const COSTO = calcularCosto(3000);
       if (xpTotalAtacante < COSTO) {
         return await interaction.editReply(`Para reventarle los MDs a un maje necesitás **${COSTO} XP** y solo tenés **${xpTotalAtacante} XP**.`);
       }
 
       const mensajesTerror = [
-        "Soy MG, este es mi server, MG voy a darte admin, MG, me voy por 3 años, MG manten el personajeSoy MG, este es mi server, MG voy a darte admin, MG, me voy por 3 años, MG manten el personajeSoy MG, este es mi server, MG voy a darte admin, MG, me voy por 3 años, MG manten el personaje",
+        "Soy MG, este es mi server, Soy MG, voy a darte admin, Soy MG, vuelvo en 3 años, Soy MG, manten el personaje",
+        "Heliconia porfavor regresa conmigo esto no es Spam, porfavor perdoname, te acuerdas cuando nos quedabamos hablando hasta la medianoche? podemos volver a intentarlo, podemos volver a hacerlo pero porfavor perdoname, te entendere si no quieres",",
         "ay dios mio, ay dios mio, ay dios- *toc-toc* quien es? soy MG jiji, MG estoy ocupado, que es ese ruido? *abre la puerta* NO MG NO, jiii, con la foto de Jane.C maldito pervertido, ZOMBIE, ZOMBIE🗣️, no, no llames a Zombie, que pasooo🗣️, Pepo que estas haciendo, con la foto de Jane.C maldito Pajero *foto* MG que estas haciendo?, lo voy a subir al server jiji",
-        "Heliconia porfavor regresa conmigo esto no es Spam, porfavor perdoname, te acuerdas cuando nos quedabamos hablando hasta la medianoche? podemos volver a intentarlo, podemos volver a hacerlo pero porfavor perdoname, te entendere si no quieres",
         "le mando un saludo a: MG, Pepo, Zombie, Red, Juan, Lava, Jerry digo seta elegante, Acuamenta, Manzana, gipmao, viruzz, ciam, gurus, franco, W D G, santigames, yezan, popcap, EA, Xbox, Playstation, Nintendo, Japon, bomba atomica, Oppenheimer, albert einstein, Jeffry epstein",
         "al chile ya me canse de escfibir tanta jalada asi que si algo esta mal escrito ya al chile me pela 3000 vegas bien grandotas y rixas y asi y no se we alv ke pedo por davor ayuda"
       ];
 
       try {
-        // Mensaje inicial d prueba
         await victimaUser.send("😈 **¡LA MALDICIÓN DEL SPAM HA EMPEZADO!** Preparate para 5 minutos d pura tortura en tus MDs... :v");
 
         recalcularProgreso(atacanteData, xpTotalAtacante - COSTO);
         await atacanteData.save();
 
-        await interaction.editReply(`🔥 **¡SPAM DESATADO!** **${atacanteUser.username}** gastó 3,000 XP para reventarle los mensajes privados a **<@${victimaUser.id}>** durante 5 minutos seguidos. ¡Que sufra el pisado! jajaja :v`);
+        await interaction.editReply(`🔥 **¡SPAM DESATADO!** **${atacanteUser.username}** le reventó los mensajes privados a **<@${victimaUser.id}>** durante 5 minutos seguidos. ¡Que sufra el pisado! jajaja :v`);
 
-        const intervalo = 5000; // Cada 5 segundos
-        const tiempoTotal = 5 * 60 * 1000; // 5 minutos
+        const intervalo = 5000;
+        const tiempoTotal = 5 * 60 * 1000;
 
         const spamLoop = setInterval(async () => {
           const fraseAzar = mensajesTerror[Math.floor(Math.random() * mensajesTerror.length)];
@@ -398,4 +479,3 @@ client.on('interactionCreate', async (interaction) => {
 });
 
 client.login(process.env.TOKEN || process.env.DISCORD_TOKEN);
-    
