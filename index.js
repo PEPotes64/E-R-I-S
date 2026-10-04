@@ -29,8 +29,8 @@ const client = new Client({
 
 // Conexion a Mongo
 mongoose.connect(process.env.MONGO_URI)
-  .then(() => console.log('⚡ ERIS: Conectado a Mongo nitidez.'))
-  .catch((err) => console.error('❌ ERIS: Clavo al conectar a Mongo:', err));
+  .then(() => console.log('🔥 ERIS: Conectado a Mongo nitidez.'))
+  .catch(err => console.error('❌ ERIS: Clavo al conectar a Mongo:', err));
 
 // 2. Base de Datos
 const erisUserSchema = new mongoose.Schema({
@@ -46,7 +46,7 @@ const erisUserSchema = new mongoose.Schema({
 // Usamos 'UserXP' para compartir la misma tabla con Zeus :v
 const ErisUser = mongoose.model('UserXP', erisUserSchema);
 
-// --- FUNCIONES MÁGICAS DE COMPATIBILIDAD CON ZEUS ---
+// --- FUNCIONES MAGICAS DE COMPATIBILIDAD CON ZEUS ---
 function obtenerXpTotal(user) {
   let total = user.xp || 0;
   let lvl = user.level || 0;
@@ -73,48 +73,63 @@ function recalcularProgreso(user, xpTotal) {
 
 // 3. CONFIGURACION DE CANALES OCULTOS DE ERIS
 const POOL_CANALES_OCULTOS = [
-  '1538617880520826880',
-  '1346670096789278730',
-  '1456350480484532416',
-  '1447323114324103269',
-  '1445238082122154045',
-  '1452110210176126986',
-  '1445443527982186568',
-  '1373118710411169953',
-  '1373302270107586784',
-  '1456351873010241737',
-  '1540482635569168495',
-  '1422796615604899841',
-  '1336314516979318786',
-  '1336712258721419275',
-  '1360807051504386068',
-  '1457873660856631438',
-  '1456716600975750698',
-  '1456354566055657523',
-  '1456354934693036207',
-  '1538630184272666624',
-  '1388348972825055313',
-  '1337067080058671157',
-  '1347060414097264641',
-  '1456351572777766985'
+  "1538617880520626880",
+  "1346670096789278730",
+  "1456350408484532416",
+  "1447323114328410326",
+  "1445238082122154045",
+  "1452110210176126986",
+  "1445443527982186568",
+  "137311870411169653",
+  "1373302270107586784",
+  "1456351873010241737",
+  "1540482635569168384",
+  "1422796615604899841",
+  "1336314516970918786",
+  "1336712258721419275",
+  "136007051504386068",
+  "14578736606855631438",
+  "1456716600975575698",
+  "1456354566055657523",
+  "1456354934693036207",
+  "1538630184272666624",
+  "1388348972825055313",
+  "13370670800058671157",
+  "134706041409726464",
+  "145635157277766985"
 ];
 
-// 4. Registrar Comandos Slash
+// 4. Registrar Comandos Slash y Bloquear Canales al Encender
 client.once('ready', async () => {
   console.log(`🔥 ERIS resucitada y lista como ${client.user.tag}`);
+
+  // Bloqueo automatico de canales para @everyone
+  for (const canalId of POOL_CANALES_OCULTOS) {
+    try {
+      const canal = await client.channels.fetch(canalId);
+      if (canal) {
+        await canal.permissionOverwrites.edit(canal.guild.id, {
+          ViewChannel: false
+        });
+      }
+    } catch (e) {
+      console.log(`Clavo al bloquear el canal ${canalId}:`, e);
+    }
+  }
+  console.log('🔒 Canales ocultos bloqueados nitido para @everyone!');
 
   const commands = [
     new SlashCommandBuilder()
       .setName('maldicion')
-      .setDescription('Desata el caos de ERIS sobre un usuario')
+      .setDescription('Desata el caos de ERIS sobre un pisado')
       .addUserOption(opt =>
         opt.setName('victima')
-          .setDescription('El pisado que va a sufrir la maldición')
+          .setDescription('El pisado que va a sufrir la maldicion')
           .setRequired(true)
       )
       .addStringOption(opt =>
         opt.setName('tipo')
-          .setDescription('Elige la maldición')
+          .setDescription('Elige la maldicion')
           .setRequired(true)
           .addChoices(
             { name: 'Susto de Ultratumba (1,000 XP)', value: 'susto' },
@@ -124,7 +139,7 @@ client.once('ready', async () => {
       )
       .addStringOption(opt =>
         opt.setName('nuevo_apodo')
-          .setDescription('El apodo feo (Solo para la maldición de apodo)')
+          .setDescription('El apodo feo (Solo para la maldicion en apodo)')
           .setRequired(false)
       )
   ];
@@ -137,7 +152,7 @@ client.once('ready', async () => {
   }
 });
 
-// 5. SISTEMA DE DIAS ACTIVOS Y DESBLOQUEO DE CANALES
+// 5. SISTEMA DE DIAS ACTIVOS Y DESBLOQUEO DE CANALES (HORA GUATEMALA)
 client.on('messageCreate', async (message) => {
   if (message.author.bot || !message.guild) return;
 
@@ -151,12 +166,13 @@ client.on('messageCreate', async (message) => {
     }
 
     const hoy = new Date();
-    const ultima = userData.ultimaActividad ? new Date(userData.ultimaActividad) : null;
+    // Forzamos la zona horaria de Guatemala para que no cuente a lo pendejo a las 6pm
+    const hoyFecha = hoy.toLocaleDateString('es-GT', { timeZone: 'America/Guatemala' });
+    const ultimaFecha = userData.ultimaActividad
+      ? new Date(userData.ultimaActividad).toLocaleDateString('es-GT', { timeZone: 'America/Guatemala' })
+      : null;
 
-    const esDiferenteDia = !ultima ||
-      hoy.getFullYear() !== ultima.getFullYear() ||
-      hoy.getMonth() !== ultima.getMonth() ||
-      hoy.getDate() !== ultima.getDate();
+    const esDiferenteDia = hoyFecha !== ultimaFecha;
 
     if (esDiferenteDia) {
       userData.diasActivos += 1;
@@ -179,13 +195,13 @@ client.on('messageCreate', async (message) => {
           userData.canalesDesbloqueados.push(canalRandomId);
 
           await message.channel.send(
-            `🎉 **${message.author.username}** cumplió **${userData.diasActivos} día(s) activo(s)**! ERIS te desbloqueó un canal secreto.`
+            `🎉 **${message.author.username}** cumplió **${userData.diasActivos} día(s)** activo(s)! ERIS te desbloqueó un canal secreto.`
           );
         }
       }
-    }
 
-    await userData.save();
+      await userData.save();
+    }
   } catch (err) {
     console.error('❌ Clavo al procesar actividad:', err);
   }
@@ -203,15 +219,14 @@ client.on('interactionCreate', async (interaction) => {
     const victimaMember = interaction.options.getMember('victima');
     const tipo = interaction.options.getString('tipo');
     const nuevoApodo = interaction.options.getString('nuevo_apodo');
-    
-    // Usamos el User directo para que nunca venga nulo ni de clavo
+
     const atacanteUser = interaction.user;
-const guildId = interaction.guildId; // <--- ESTE NUNCA FALLA EN SERVIDORES
-    
+    const guildId = interaction.guildId;
+
     if (!guildId) return await interaction.editReply('Esta mierda solo funciona dentro del servidor Pepo :v');
     if (!victimaUser) return await interaction.editReply('No encontre a ese pisado :v');
     if (victimaUser.bot) return await interaction.editReply('Nee maje, no podes maldecir bots :v');
-    if (victimaUser.id === atacanteUser.id) return await interaction.editReply('¿Te vas a maldecir vos solo? No seas cerote :v');
+    if (victimaUser.id === atacanteUser.id) return await interaction.editReply('¿Te vas a maldecir vos solo? No seas mula :v');
 
     let atacanteData = await ErisUser.findOne({ userId: atacanteUser.id, guildId });
     let victimaData = await ErisUser.findOne({ userId: victimaUser.id, guildId });
@@ -219,23 +234,21 @@ const guildId = interaction.guildId; // <--- ESTE NUNCA FALLA EN SERVIDORES
     if (!atacanteData) atacanteData = new ErisUser({ userId: atacanteUser.id, guildId });
     if (!victimaData) victimaData = new ErisUser({ userId: victimaUser.id, guildId });
 
-    // Calculamos el XP total tomando en cuenta los niveles de Zeus
     const xpTotalAtacante = obtenerXpTotal(atacanteData);
 
-        // --- MALDICION 1: SUSTO (1,000 XP) ---
+    // --- MALDICION 1: SUSTO (1,000 XP) ---
     if (tipo === 'susto') {
       const COSTO = 1000;
       if (xpTotalAtacante < COSTO) {
         return await interaction.editReply(`Estás mudo de XP maje. Necesitás **${COSTO} XP** y solo tenés **${xpTotalAtacante} XP**.`);
       }
-      
+
       // GIFs d susto elegidos por Pepo :v
       const gifs = [
         'https://media3.giphy.com/media/v1.Y2lkPTZjMDliOTUyNHdzMDFtdnUzcWJwcmpvODVpMnFheGIzbHNnMzh5NXpwZjZ5dDUxNCZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/T39By0uZSaAjSYaF9B/giphy.gif',
         'https://media3.giphy.com/media/v1.Y2lkPTZjMDliOTUyMnFtMzJ2YWl1M2t1b2FwczFtOHFtd2w0enQyaGF4bzZoOGV0aWVqZiZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/cYqhkF6jUFXvHfnOt4/giphy.gif',
         'https://media1.giphy.com/media/v1.Y2lkPTZjMDliOTUyOW5uZ3ltNmM2dDAzYnFndnZhamV2NXczaG15ZDNyNTdiMHFyeWZyayZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/QsgJi30B9ByH7tRhGV/giphy.gif',
         'https://media4.giphy.com/media/v1.Y2lkPTZjMDliOTUyOG45ZXB3dGZyb3dwdXBhajRzZmkyeTZ2YTlzN292a21wa2xjaGt4MyZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/4R8pzQboylfva/giphy.gif'
-        
       ];
 
       const gifElegido = gifs[Math.floor(Math.random() * gifs.length)];
@@ -267,9 +280,9 @@ const guildId = interaction.guildId; // <--- ESTE NUNCA FALLA EN SERVIDORES
         recalcularProgreso(atacanteData, xpTotalAtacante - COSTO);
         await atacanteData.save();
 
-        return await interaction.editReply(`💀 **${atacanteUser.username}** le cambió el apodo a **<@${victimaUser.id}>** a **"${apodoPuesto}"** por mala nota :v`);
+        return await interaction.editReply(`💀 **${atacanteUser.username}** le cambió el apodo a **<@${victimaUser.id}>** por **"${apodoPuesto}"**!`);
       } catch (e) {
-        return await interaction.editReply(`No pude cambiarle el apodo a ese maje, seguro tiene un rol más alto que el mío o no esta en la cache :v`);
+        return await interaction.editReply(`No pude cambiarle el apodo a esa mara, seguro tiene mas jerarquia k yo o soy mula :v`);
       }
     }
 
@@ -277,18 +290,18 @@ const guildId = interaction.guildId; // <--- ESTE NUNCA FALLA EN SERVIDORES
     if (tipo === 'robo') {
       const COSTO = 2000;
       if (xpTotalAtacante < COSTO) {
-        return await interaction.editReply(`Para intentar un robo necesitás apostar **${COSTO} XP**.`);
+        return await interaction.editReply('Para intentar un robo necesitás 2,000 XP maje.');
       }
 
       const xpTotalVictima = obtenerXpTotal(victimaData);
       if (xpTotalVictima < 300) {
-        return await interaction.editReply(`Ese pisado está más pobre que uno, ni vale la pena robarle :v`);
+        return await interaction.editReply('Ese pisado está más pobre que vos, no tiene ni 300 XP xd');
       }
 
       const robado = Math.floor(Math.random() * (700 - 300 + 1)) + 300;
       const realRobo = Math.min(robado, xpTotalVictima);
 
-      // 50% de probabilidad de éxito
+      // 50% de probabilidad
       const exito = Math.random() < 0.5;
 
       if (exito) {
@@ -298,7 +311,7 @@ const guildId = interaction.guildId; // <--- ESTE NUNCA FALLA EN SERVIDORES
         await atacanteData.save();
         await victimaData.save();
 
-        return await interaction.editReply(`⚔️ **¡ROBO COMPLETADO!** **${atacanteUser.username}** le robó **${realRobo} XP** a **<@${victimaUser.id}>**! 🎉`);
+        return await interaction.editReply(`⚔️ **¡ROBO COMPLETADO!** **${atacanteUser.username}** le robo **${realRobo} XP** a **<@${victimaUser.id}>**!`);
       } else {
         recalcularProgreso(atacanteData, xpTotalAtacante - COSTO);
         recalcularProgreso(victimaData, xpTotalVictima + 500);
@@ -306,15 +319,15 @@ const guildId = interaction.guildId; // <--- ESTE NUNCA FALLA EN SERVIDORES
         await atacanteData.save();
         await victimaData.save();
 
-        return await interaction.editReply(`❌ **¡ROBO FALLIDO!** **${atacanteUser.username}** la cagó intentando robar y perdió sus 2000 XP. **<@${victimaUser.id}>** se quedó con 500 XP de recompensa :v`);
+        return await interaction.editReply(`❌ **¡ROBO FALLIDO!** **${atacanteUser.username}** comio mierda intentando robarle a **<@${victimaUser.id}>** y le regaló 500 XP :v`);
       }
     }
 
   } catch (error) {
     console.error('❌ Error en el comando de ERIS:', error);
-    if (interaction.deferred) await interaction.editReply('Puchica Pepo, saltó un clavo con la maldición :v');
+    if (interaction.deferred) await interaction.editReply('Puchica Pepo, hubo un clavo al ejecutar la maldicion :v');
   }
 });
 
 client.login(process.env.TOKEN || process.env.DISCORD_TOKEN);
-          
+    
