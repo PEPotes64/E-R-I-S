@@ -87,6 +87,7 @@ const POOL_CANDIDATOS_BRUJA = [
 let BRUJAS_ACTIVAS = [];
 let registroAtaquesHoy = {};
 let horaInactividadRevisadaHoy = false;
+let diasDelEvento = 0;
 
 // Verifica si estamos en "La Hora de la Bruja" (6:00 PM a 6:59 PM Guatemala)
 function esHoraDeLaBruja() {
@@ -181,66 +182,71 @@ client.once('ready', async () => {
   }
 
   // Seleccionamos a la primera bruja si no hay ninguna activa
-  if (BRUJAS_ACTIVAS.length === 0) {
-    await agregarNuevaBruja();
-  }
+// REVISION AUTOMATICA (Cada 1 minuto)
+setInterval(async () => {
+  const ahora = new Date();
+  const horaGT = parseInt(ahora.toLocaleTimeString('en-US', { timeZone: 'America/Guatemala', hour12: false, hour: '2-digit' }));
 
-  // REVISION AUTOMATICA DE INACTIVIDAD DE LAS BRUJAS (Cada 1 minuto)
-  setInterval(async () => {
-    const ahora = new Date();
-    const horaGT = parseInt(ahora.toLocaleTimeString('en-US', { timeZone: 'America/Guatemala', hour12: false, hour: '2-digit' }));
+  // 1. A las 7:00 PM (19 hrs GT) revisamos inactividad
+  if (horaGT === 19 && !horaInactividadRevisadaHoy) {
+    horaInactividadRevisadaHoy = true;
+    console.log('🕯️ 7:00 PM GT: Revisando actividad d las Brujas...');
 
-    // A las 7:00 PM (19 hrs GT) revisamos si la bruja hizo algo
-    if (horaGT === 19 && !horaInactividadRevisadaHoy) {
-      horaInactividadRevisadaHoy = true;
-      console.log('🕯️ 7:00 PM GT: Revisando actividad de las Brujas...');
+    for (let i = 0; i < BRUJAS_ACTIVAS.length; i++) {
+      const brujaId = BRUJAS_ACTIVAS[i];
+      if (!registroAtaquesHoy[brujaId] || registroAtaquesHoy[brujaId] === 0) {
+        console.log(`💀 Bruja inactiva sacada: ${brujaId}`);
 
-      for (let i = 0; i < BRUJAS_ACTIVAS.length; i++) {
-        const brujaId = BRUJAS_ACTIVAS[i];
-        if (!registroAtaquesHoy[brujaId] || registroAtaquesHoy[brujaId] === 0) {
-          console.log(`💀 Bruja inactiva sacada: ${brujaId}`);
+        // Quitarle el rol d Bruja
+        client.guilds.cache.forEach(async (guild) => {
+          try {
+            const member = await guild.members.fetch(brujaId);
+            if (member) await member.roles.remove(ROL_BRUJA_ID);
+          } catch (e) {}
+        });
 
-          // Quitarle el rol d Bruja por vaga
+        try {
+          const u = await client.users.fetch(brujaId);
+          await u.send("🤡 **PERDISTE TUS PODERES:** No tiraste ni una sola maldición d 6 a 7 PM, así k ERIS te quitó el rol d Bruja por mula. :v");
+        } catch (e) {}
+
+        // Reemplazar bruja vaga
+        const disponibles = POOL_CANDIDATOS_BRUJA.filter(id => !BRUJAS_ACTIVAS.includes(id));
+        if (disponibles.length > 0) {
+          const nueva = disponibles[Math.floor(Math.random() * disponibles.length)];
+          BRUJAS_ACTIVAS[i] = nueva;
+
           client.guilds.cache.forEach(async (guild) => {
             try {
-              const member = await guild.members.fetch(brujaId);
-              if (member) await member.roles.remove(ROL_BRUJA_ID);
+              const member = await guild.members.fetch(nueva);
+              if (member) await member.roles.add(ROL_BRUJA_ID);
             } catch (e) {}
           });
 
           try {
-            const u = await client.users.fetch(brujaId);
-            await u.send("🤡 **PERDISTE TUS PODERES:** No tiraste ni una sola maldición de 6 a 7 PM, así que ERIS te quitó el rol de Bruja por mula. :v");
+            const uNueva = await client.users.fetch(nueva);
+            await uNueva.send("🧙‍♀️ **¡SOS LA NUEVA BRUJA DE HALLOWEEN!** El cerote anterior no hizo nada d 6 a 7 PM, asi k ERIS te dio el poder. Mañana a las 6:00 PM tenés maldiciones gratis. ¡Usalas pisado! 💀");
           } catch (e) {}
-
-          // Reemplazar a la bruja hueva
-          const disponibles = POOL_CANDIDATOS_BRUJA.filter(id => !BRUJAS_ACTIVAS.includes(id));
-          if (disponibles.length > 0) {
-            const nueva = disponibles[Math.floor(Math.random() * disponibles.length)];
-            BRUJAS_ACTIVAS[i] = nueva;
-
-            // Ponerle el rol a la nueva bruja
-            client.guilds.cache.forEach(async (guild) => {
-              try {
-                const member = await guild.members.fetch(nueva);
-                if (member) await member.roles.add(ROL_BRUJA_ID);
-              } catch (e) {}
-            });
-
-            try {
-              const uNueva = await client.users.fetch(nueva);
-              await uNueva.send("🧙‍♀️ **¡SOS LA NUEVA BRUJA DE HALLOWEEN!** El cerote anterior no hizo nada de 6 a 7 PM, así que ERIS te dio el poder a vos. Mañana a las 6:00 PM tenés maldiciones gratis. ¡No seas mula y usalas! 💀");
-            } catch (e) {}
-          }
         }
       }
-      registroAtaquesHoy = {};
     }
+    registroAtaquesHoy = {};
+  }
 
-    if (horaGT === 0) {
-      horaInactividadRevisadaHoy = false; // Reset medianoche
+  // 2. A Medianoche (00:00 GT) sumamos 1 dia y agregamos bruja si pasaron 7 dias
+  if (horaGT === 0 && horaInactividadRevisadaHoy) {
+    horaInactividadRevisadaHoy = false; // Reset p el dia siguiente
+    diasDelEvento++;
+    console.log(`🌙 Dia ${diasDelEvento} del evento d Halloween.`);
+
+    // Cada 7 dias agregamos 1 bruja mas (maximo 3)
+    if (diasDelEvento % 7 === 0 && BRUJAS_ACTIVAS.length < 3) {
+      console.log('🧙‍♀️ ¡Se suma una nueva Bruja al aquelarre!');
+      await agregarNuevaBruja();
     }
-  }, 60000);
+  }
+}, 60000);
+  
 });
 
 // 5. SISTEMA DE DIAS ACTIVOS Y DESBLOQUEO DE CANALES
