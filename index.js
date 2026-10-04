@@ -3,8 +3,7 @@ const {
   Client,
   GatewayIntentBits,
   EmbedBuilder,
-  SlashCommandBuilder,
-  PermissionFlagsBits
+  SlashCommandBuilder
 } = require('discord.js');
 const mongoose = require('mongoose');
 
@@ -134,12 +133,14 @@ client.once('ready', async () => {
           .addChoices(
             { name: 'Susto de Ultratumba (1,000 XP)', value: 'susto' },
             { name: 'Apodo Humillante (1,500 XP)', value: 'apodo' },
-            { name: 'Robo de XP (2,000 XP)', value: 'robo' }
+            { name: 'Robo de XP (2,000 XP)', value: 'robo' },
+            { name: 'Bozal de 1 Hora (2,500 XP)', value: 'silenciar' },
+            { name: 'Spam Masivo en MD (3,000 XP)', value: 'spam' }
           )
       )
       .addStringOption(opt =>
         opt.setName('nuevo_apodo')
-          .setDescription('El apodo feo (Solo para la maldicion en apodo)')
+          .setDescription('El apodo feo (Solo para la maldicion de apodo)')
           .setRequired(false)
       )
   ];
@@ -243,7 +244,6 @@ client.on('interactionCreate', async (interaction) => {
         return await interaction.editReply(`Estás mudo de XP maje. Necesitás **${COSTO} XP** y solo tenés **${xpTotalAtacante} XP**.`);
       }
 
-      // GIFs d susto elegidos por Pepo :v
       const gifs = [
         'https://media3.giphy.com/media/v1.Y2lkPTZjMDliOTUyNHdzMDFtdnUzcWJwcmpvODVpMnFheGIzbHNnMzh5NXpwZjZ5dDUxNCZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/T39By0uZSaAjSYaF9B/giphy.gif',
         'https://media3.giphy.com/media/v1.Y2lkPTZjMDliOTUyMnFtMzJ2YWl1M2t1b2FwczFtOHFtd2w0enQyaGF4bzZoOGV0aWVqZiZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/cYqhkF6jUFXvHfnOt4/giphy.gif',
@@ -301,7 +301,6 @@ client.on('interactionCreate', async (interaction) => {
       const robado = Math.floor(Math.random() * (700 - 300 + 1)) + 300;
       const realRobo = Math.min(robado, xpTotalVictima);
 
-      // 50% de probabilidad
       const exito = Math.random() < 0.5;
 
       if (exito) {
@@ -320,6 +319,75 @@ client.on('interactionCreate', async (interaction) => {
         await victimaData.save();
 
         return await interaction.editReply(`❌ **¡ROBO FALLIDO!** **${atacanteUser.username}** comio mierda intentando robarle a **<@${victimaUser.id}>** y le regaló 500 XP :v`);
+      }
+    }
+
+    // --- MALDICION 4: SILENCIAR / BOZAL (2,500 XP) ---
+    if (tipo === 'silenciar') {
+      const COSTO = 2500;
+      if (xpTotalAtacante < COSTO) {
+        return await interaction.editReply(`Para meterle bozal a un pisado necesitás **${COSTO} XP** y solo tenés **${xpTotalAtacante} XP**.`);
+      }
+
+      try {
+        const objetivo = await interaction.guild.members.fetch(victimaUser.id);
+        if (!objetivo) throw new Error('No member');
+
+        // Silenciar por 1 hora (3,600,000 ms)
+        await objetivo.timeout(60 * 60 * 1000, 'Maldición de ERIS: Silenciado por 1 hora');
+
+        recalcularProgreso(atacanteData, xpTotalAtacante - COSTO);
+        await atacanteData.save();
+
+        return await interaction.editReply(`🤐 **¡BOZAL PUESTO!** **${atacanteUser.username}** gastó 2,500 XP y le metió un bozal a **<@${victimaUser.id}>** por 1 hora completa. ¡A chillar a la llorona pisado! :v`);
+      } catch (e) {
+        return await interaction.editReply(`No pude silenciar a ese cerote, seguro tiene mas jerarquia k yo o me faltan permisos d moderador mano :v`);
+      }
+    }
+
+    // --- MALDICION 5: SPAM EN MD (3,000 XP) ---
+    if (tipo === 'spam') {
+      const COSTO = 3000;
+      if (xpTotalAtacante < COSTO) {
+        return await interaction.editReply(`Para reventarle los MDs a un maje necesitás **${COSTO} XP** y solo tenés **${xpTotalAtacante} XP**.`);
+      }
+
+      const mensajesTerror = [
+        "Soy MG, este es mi server, MG voy a darte admin, MG, me voy por 3 años, MG manten el personajeSoy MG, este es mi server, MG voy a darte admin, MG, me voy por 3 años, MG manten el personajeSoy MG, este es mi server, MG voy a darte admin, MG, me voy por 3 años, MG manten el personaje",
+        "ay dios mio, ay dios mio, ay dios- *toc-toc* quien es? soy MG jiji, MG estoy ocupado, que es ese ruido? *abre la puerta* NO MG NO, jiii, con la foto de Jane.C maldito pervertido, ZOMBIE, ZOMBIE🗣️, no, no llames a Zombie, que pasooo🗣️, Pepo que estas haciendo, con la foto de Jane.C maldito Pajero *foto* MG que estas haciendo?, lo voy a subir al server jiji",
+        "Heliconia porfavor regresa conmigo esto no es Spam, porfavor perdoname, te acuerdas cuando nos quedabamos hablando hasta la medianoche? podemos volver a intentarlo, podemos volver a hacerlo pero porfavor perdoname, te entendere si no quieres",
+        "le mando un saludo a: MG, Pepo, Zombie, Red, Juan, Lava, Jerry digo seta elegante, Acuamenta, Manzana, gipmao, viruzz, ciam, gurus, franco, W D G, santigames, yezan, popcap, EA, Xbox, Playstation, Nintendo, Japon, bomba atomica, Oppenheimer, albert einstein, Jeffry epstein",
+        "al chile ya me canse de escfibir tanta jalada asi que si algo esta mal escrito ya al chile me pela 3000 vegas bien grandotas y rixas y asi y no se we alv ke pedo por davor ayuda"
+      ];
+
+      try {
+        // Mensaje inicial d prueba
+        await victimaUser.send("😈 **¡LA MALDICIÓN DEL SPAM HA EMPEZADO!** Preparate para 5 minutos d pura tortura en tus MDs... :v");
+
+        recalcularProgreso(atacanteData, xpTotalAtacante - COSTO);
+        await atacanteData.save();
+
+        await interaction.editReply(`🔥 **¡SPAM DESATADO!** **${atacanteUser.username}** gastó 3,000 XP para reventarle los mensajes privados a **<@${victimaUser.id}>** durante 5 minutos seguidos. ¡Que sufra el pisado! jajaja :v`);
+
+        const intervalo = 5000; // Cada 5 segundos
+        const tiempoTotal = 5 * 60 * 1000; // 5 minutos
+
+        const spamLoop = setInterval(async () => {
+          const fraseAzar = mensajesTerror[Math.floor(Math.random() * mensajesTerror.length)];
+          try {
+            await victimaUser.send(fraseAzar);
+          } catch (err) {
+            clearInterval(spamLoop);
+          }
+        }, intervalo);
+
+        setTimeout(() => {
+          clearInterval(spamLoop);
+          victimaUser.send("🛑 Se acabaron tus 5 minutos d sufrimiento... por ahora. :v").catch(() => {});
+        }, tiempoTotal);
+
+      } catch (e) {
+        return await interaction.editReply(`❌ El pisado d **<@${victimaUser.id}>** tiene los mensajes privados cerrados, se salvo el culero :v`);
       }
     }
 
