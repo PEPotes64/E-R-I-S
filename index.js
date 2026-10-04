@@ -502,6 +502,7 @@ client.on('interactionCreate', async (interaction) => {
           await victimaData.save();
 
           return await interaction.editReply(`❌ **¡ROBO FALLIDO!** **${atacanteUser.username}** la cagó y le regaló 500 XP a <@${victimaUser.id}>. 🤡 :v`);
+        }
       }
 
       // 4. SILENCIAR (2,500 XP)
@@ -572,4 +573,3 @@ client.on('interactionCreate', async (interaction) => {
 });
 
 client.login(process.env.TOKEN || process.env.DISCORD_TOKEN);
-            
