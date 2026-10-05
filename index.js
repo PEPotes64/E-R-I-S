@@ -70,8 +70,6 @@ function recalcularProgreso(user, xpTotal) {
 }
 
 // 3. EVENTO DE HALLOWEEN: AQUELARRE DE BRUJAS 🧙‍♀️
-const ROL_BRUJA_ID = "1556126238295203860";
-
 const POOL_CANDIDATOS_BRUJA = [
   "1173252977042141265",
   "1115394374369542196",
@@ -106,14 +104,7 @@ async function agregarNuevaBruja() {
   if (disponibles.length > 0) {
     const elegida = disponibles[Math.floor(Math.random() * disponibles.length)];
     BRUJAS_ACTIVAS.push(elegida);
-    console.log(`🧙‍♀️ Nueva bruja seleccionada: ${elegida}`);
-
-    client.guilds.cache.forEach(async (guild) => {
-      try {
-        const member = await guild.members.fetch(elegida);
-        if (member) await member.roles.add(ROL_BRUJA_ID);
-      } catch (e) {}
-    });
+    console.log(`🧙‍♀️ Nueva bruja seleccionada en secreto: ${elegida}`);
 
     try {
       const userBruja = await client.users.fetch(elegida);
@@ -121,9 +112,9 @@ async function agregarNuevaBruja() {
         "🧙‍♀️ **¡SOS LA NUEVA BRUJA DE HALLOWEEN!**\n\n" +
         "Felicitaciones cerote. Todos los días de 6:00 PM a 7:00 PM (Hora GT) podés usar `/maldicion` GRATIS.\n\n" +
         "⚠️ **REGLAS DE ORO:**\n" +
-        "1. Si no tirás ni una sola maldición entre 6 y 7 PM, ERIS te quita el rol x vaga.\n" +
-        "2. Si revelás tu identidad en el chat o por privado, te cae bozazaso x mula.\n" +
-        "¡Desatá el caos pisado! 💀"
+        "1. Si no tirás ni una sola maldición entre 6 y 7 PM, ERIS te quita el poder x vaga.\n" +
+        "2. NINGÚN USUARIO PUEDE VER QUE SOS BRUJA (es 100% secreto). Si decís algo en el chat, te cae bozazaso x mula.\n" +
+        "¡Desatá el caos en secreto pisado! 💀"
       );
     } catch (e) {
       console.log(`Clavo mandando MD a la bruja ${elegida}:`, e);
@@ -207,34 +198,20 @@ client.once('ready', async () => {
         if (!registroAtaquesHoy[brujaId] || registroAtaquesHoy[brujaId] === 0) {
           console.log(`💀 Bruja inactiva sacada: ${brujaId}`);
 
-          client.guilds.cache.forEach(async (guild) => {
-            try {
-              const member = await guild.members.fetch(brujaId);
-              if (member) await member.roles.remove(ROL_BRUJA_ID);
-            } catch (e) {}
-          });
-
           try {
             const u = await client.users.fetch(brujaId);
-            await u.send("🤡 **PERDISTE TUS PODERES:** No tiraste ni una sola maldición de 6 a 7 PM, así k ERIS te quitó el rol d Bruja por mula. :v");
+            await u.send("🤡 **PERDISTE TUS PODERES:** No tiraste ni una sola maldición de 6 a 7 PM, así k ERIS te quitó los poderes d Bruja por mula. :v");
           } catch (e) {}
 
-          // Reemplazar bruja
+          // Reemplazar bruja al azar
           const disponibles = POOL_CANDIDATOS_BRUJA.filter(id => !BRUJAS_ACTIVAS.includes(id));
           if (disponibles.length > 0) {
             const nueva = disponibles[Math.floor(Math.random() * disponibles.length)];
             BRUJAS_ACTIVAS[i] = nueva;
 
-            client.guilds.cache.forEach(async (guild) => {
-              try {
-                const member = await guild.members.fetch(nueva);
-                if (member) await member.roles.add(ROL_BRUJA_ID);
-              } catch (e) {}
-            });
-
             try {
               const uNueva = await client.users.fetch(nueva);
-              await uNueva.send("🧙‍♀️ **¡SOS LA NUEVA BRUJA DE HALLOWEEN!** El cerote anterior no hizo nada d 6 a 7 PM, así k ERIS te dio el poder. Mañana a las 6:00 PM tenés maldiciones gratis. ¡Usalas pisado! 💀");
+              await uNueva.send("🧙‍♀️ **¡SOS LA NUEVA BRUJA DE HALLOWEEN!** El cerote anterior no hizo nada d 6 a 7 PM, así k ERIS te dio el poder en secreto. Mañana a las 6:00 PM tenés maldiciones gratis. ¡Usalas pisado! 💀");
             } catch (e) {}
           }
         }
@@ -278,13 +255,8 @@ client.once('ready', async () => {
           const esBruja = BRUJAS_ACTIVAS.includes(acusadoMasVotado);
 
           if (esBruja) {
-            // ERA BRUJA
+            // ERA BRUJA (Solo la sacamos d la lista secreta)
             BRUJAS_ACTIVAS = BRUJAS_ACTIVAS.filter(id => id !== acusadoMasVotado);
-
-            try {
-              const member = await guild.members.fetch(acusadoMasVotado);
-              if (member) await member.roles.remove(ROL_BRUJA_ID);
-            } catch (e) {}
 
             const brujasRestantes = BRUJAS_ACTIVAS.length;
             if (canal) await canal.send(`💀 **¡AJÁ PISADOS!** Este pendejillo (<@${acusadoMasVotado}>) **SÍ ERA BRUJA**. Quedan **${brujasRestantes}** brujas entre ustedes. 🧙‍♀️🔥`);
@@ -530,10 +502,10 @@ client.on('interactionCreate', async (interaction) => {
         if (xpTotalAtacante < COSTO) return await interaction.editReply('Para reventarle los MDs a un pisado necesitás más XP.');
 
         const mensajesTerror = [
-          "Soy MG, este es mi server, Soy MG, voy a darte admin, MG, vuelvo en 3 años, MG manten el personaje",
-          "Heliconta porfavor regresa conmigo esto no es Spam, neta te extraño, recuerdas cuanto nos haciamos paja grupal a las 12:00 pm? volvamos a hacer porfavor perdoname ya no te vuelvo a pegar",
-          "Ay dios mio, ay dios mio, toc-toc quien es? soy MG jiji, MG estoy ocupado, k estas haciendo? no MG no, jiii con la foto de Jane.C maldito pervertido, Zombie, Zombie, no no llames a Zombie, que pasooo, jiii, Pepo que estas haciendo, con la foto de Jane.C maldito Pajero *Foto* MG que estas haciendo? lo voy a subir al Server jiji, no no lo hagas, ya te pingee Pepo, puta madre MG",
-          "Te mando un saludo a: MG, Pepo, Zombie, Red, Juan, Lava, tu puta madre"
+          "Soy MG, este es mi server, Soy MG, voy a darte admin...",
+          "Heliconta porfavor regresa conmigo esto no me gusta...",
+          "Ay dios mio, ay dios mio, toc-toc quien es? soy MG...",
+          "Te mando un saludo a: MG, Pepo, Zombie, Red, Juan, Laura..."
         ];
 
         try {
