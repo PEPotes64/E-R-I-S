@@ -16,13 +16,14 @@ http.createServer((req, res) => {
   console.log(`trampa d puerto jalando nitido en el puerto ${PORT} :v`);
 });
 
-// 1. Inicializacion de ERIS
+// 1. Inicializacion de ERIS (con VoiceStates p la llamada d voz)
 const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
     GatewayIntentBits.GuildMessages,
     GatewayIntentBits.MessageContent,
-    GatewayIntentBits.GuildMembers
+    GatewayIntentBits.GuildMembers,
+    GatewayIntentBits.GuildVoiceStates
   ]
 });
 
@@ -93,6 +94,10 @@ let usuariosQueVotaron = [];
 let votacionAbierta = false;
 let liquidacionHecha = false;
 
+// VARIABLES GLOBALES DE MALDICIONES ULTRA CAOTICAS
+let comandosBloqueados = false;
+let palabraProhibida = null;
+
 function esHoraDeLaBruja() {
   const ahora = new Date();
   const horaGT = parseInt(ahora.toLocaleTimeString('en-US', { timeZone: 'America/Guatemala', hour12: false, hour: '2-digit' }));
@@ -146,7 +151,10 @@ client.once('ready', async () => {
     new SlashCommandBuilder()
       .setName('maldicion')
       .setDescription('Desata el caos de ERIS sobre un pisado')
-      .addUserOption(opt => opt.setName('victima').setDescription('El pisado').setRequired(true))
+      .addUserOption(opt => opt.setName('victima').setDescription('El pisado').setRequired(false))
+      .addStringOption(opt => opt.setName('palabra').setDescription('Palabra para la lista negra (Solo si elegiste Lista Negra)'))
+      .addStringOption(opt => opt.setName('texto').setDescription('Texto personalizado para el apocalipsis (/acabar)'))
+      .addStringOption(opt => opt.setName('nuevo_apodo').setDescription('Si elegiste apodo'))
       .addStringOption(opt =>
         opt.setName('tipo')
           .setDescription('Elige la maldicion')
@@ -156,10 +164,14 @@ client.once('ready', async () => {
             { name: 'Apodo Humillante (1,500 XP)', value: 'apodo' },
             { name: 'Robo de XP (2,000 XP)', value: 'robo' },
             { name: 'Bozal de 1 Hora (2,500 XP)', value: 'silenciar' },
-            { name: 'Spam Masivo en MD (3,000 XP)', value: 'spam' }
+            { name: 'Spam Masivo en MD (3,000 XP)', value: 'spam' },
+            // --- MALDICIONES ULTRA CAÓTICAS D BRUJA ---
+            { name: '📞 Llamada Terrorífica 5 min (SOLO BRUJAS)', value: 'llamada' },
+            { name: '🚫 0 Comandos en Server 15 min (SOLO BRUJAS)', value: 'cero_comandos' },
+            { name: '🤫 Lista Negra de Palabra (SOLO BRUJAS)', value: 'lista_negra' },
+            { name: '💥 Acabar - Spam Total en Canales 5 min (SOLO BRUJAS)', value: 'acabar' }
           )
-      )
-      .addStringOption(opt => opt.setName('nuevo_apodo').setDescription('Si elegiste apodo')),
+      ),
 
     new SlashCommandBuilder()
       .setName('horca')
@@ -320,12 +332,21 @@ client.once('ready', async () => {
   }, 60000);
 });
 
-// 5. SISTEMA DE DIAS ACTIVOS Y DESBLOQUEO DE CANALES
+// 5. SISTEMA DE DIAS ACTIVOS, DESBLOQUEO DE CANALES Y LISTA NEGRA
 client.on('messageCreate', async (message) => {
   if (message.author.bot || !message.guild) return;
 
   const userId = message.author.id;
   const guildId = message.guild.id;
+
+  // --- BORRADO POR LISTA NEGRA D LA BRUJA ---
+  if (palabraProhibida && message.content.toLowerCase().includes(palabraProhibida.toLowerCase()) && !BRUJAS_ACTIVAS.includes(userId)) {
+    try {
+      await message.delete();
+      const aviso = await message.channel.send(`⚠️ <@${userId}> dijo la palabra prohibida de la Bruja (**"${palabraProhibida}"**) y su mensaje fue desintegrado! 💀 :v`);
+      setTimeout(() => aviso.delete().catch(() => {}), 5000);
+    } catch (e) {}
+  }
 
   try {
     let userData = await ErisUser.findOne({ userId, guildId });
@@ -360,6 +381,11 @@ client.on('messageCreate', async (message) => {
 client.on('interactionCreate', async (interaction) => {
   if (!interaction.isChatInputCommand()) return;
 
+  // --- BLOQUEO DE COMANDOS SI LA BRUJA ACTIVO /0COMANDOS ---
+  if (comandosBloqueados && !BRUJAS_ACTIVAS.includes(interaction.user.id)) {
+    return await interaction.reply({ content: "❌ **¡0 COMANDOS ACTIVADO!** La Bruja Secreta deshabilitó los comandos en todo el server por mulas. Esperá a que c pase la maldición. 💀 :v", ephemeral: true });
+  }
+
   // --- COMANDO /HORCA ---
   if (interaction.commandName === 'horca') {
     if (!votacionAbierta) {
@@ -388,23 +414,24 @@ client.on('interactionCreate', async (interaction) => {
       const victimaMember = interaction.options.getMember('victima');
       const tipo = interaction.options.getString('tipo');
       const nuevoApodo = interaction.options.getString('nuevo_apodo');
+      const palabraInput = interaction.options.getString('palabra');
+      const textoInput = interaction.options.getString('texto');
 
       const atacanteUser = interaction.user;
       const guildId = interaction.guildId;
 
       if (!guildId) return await interaction.editReply('Esta mierda solo funciona en server.');
-      if (!victimaUser) return await interaction.editReply('No encontré a la víctima.');
-      if (victimaUser.bot) return await interaction.editReply('Nee maje, no podés atacar a un bot.');
-      if (victimaUser.id === atacanteUser.id) return await interaction.editReply('No seas mula, no te podés maldecir a vos mismo.');
 
       let atacanteData = await ErisUser.findOne({ userId: atacanteUser.id, guildId });
-      let victimaData = await ErisUser.findOne({ userId: victimaUser.id, guildId });
-
       if (!atacanteData) atacanteData = new ErisUser({ userId: atacanteUser.id, guildId });
-      if (!victimaData) victimaData = new ErisUser({ userId: victimaUser.id, guildId });
+
+      let victimaData = null;
+      if (victimaUser) {
+        victimaData = await ErisUser.findOne({ userId: victimaUser.id, guildId });
+        if (!victimaData) victimaData = new ErisUser({ userId: victimaUser.id, guildId });
+      }
 
       const xpTotalAtacante = obtenerXpTotal(atacanteData);
-
       const esBruja = BRUJAS_ACTIVAS.includes(atacanteUser.id);
       const estaEnLaHora = esHoraDeLaBruja();
       const esGratis = esBruja && estaEnLaHora;
@@ -415,6 +442,7 @@ client.on('interactionCreate', async (interaction) => {
 
       // 1. SUSTO (1,000 XP)
       if (tipo === 'susto') {
+        if (!victimaUser) return await interaction.editReply('Seleccioná una víctima en la opción `victima`.');
         const COSTO = calcularCosto(1000, esGratis);
         if (xpTotalAtacante < COSTO) return await interaction.editReply('Estás mudo de XP maje. Necesitás más.');
 
@@ -431,6 +459,7 @@ client.on('interactionCreate', async (interaction) => {
 
       // 2. APODO (1,500 XP)
       if (tipo === 'apodo') {
+        if (!victimaUser) return await interaction.editReply('Seleccioná una víctima en la opción `victima`.');
         const COSTO = calcularCosto(1500, esGratis);
         const apodoPuesto = nuevoApodo || "Maje Maldito 🤡";
 
@@ -450,91 +479,201 @@ client.on('interactionCreate', async (interaction) => {
 
       // 3. ROBO DE XP (2,000 XP)
       if (tipo === 'robo') {
+        if (!victimaUser) return await interaction.editReply('Seleccioná una víctima en la opción `victima`.');
         const COSTO = calcularCosto(2000, esGratis);
         if (xpTotalAtacante < COSTO) return await interaction.editReply('Para intentar un robo necesitás más XP.');
 
-        const xpTotalVictima = obtenerXpTotal(victimaData);
-        if (xpTotalVictima < 300) return await interaction.editReply('Ese pisado está más pobre k vos, no le podés robar ni mrd.');
+                 const xpTotalVictima = obtenerXpTotal(victimaData);
+            if (xpTotalVictima < 300) return await interaction.editReply('Ese pisado está más pobre k vos, no le podés robar ni mrd.');
 
-        const robado = Math.floor(Math.random() * (700 - 300 + 1)) + 300;
-        const realRobo = Math.min(robado, xpTotalVictima);
-        const exito = Math.random() < 0.5;
+            const robado = Math.floor(Math.random() * (700 - 300 + 1)) + 300;
+            const realRobo = Math.min(robado, xpTotalVictima);
+            const exito = Math.random() < 0.5;
 
-        if (exito) {
-          recalcularProgreso(atacanteData, xpTotalAtacante - COSTO + realRobo);
-          recalcularProgreso(victimaData, xpTotalVictima - realRobo);
-          await atacanteData.save();
-          await victimaData.save();
+            if (exito) {
+              recalcularProgreso(atacanteData, xpTotalAtacante - COSTO + realRobo);
+              recalcularProgreso(victimaData, xpTotalVictima - realRobo);
+              await atacanteData.save();
+              await victimaData.save();
 
-          return await interaction.editReply(`⚔️ **¡ROBO COMPLETADO!** **${atacanteUser.username}** le robó **${realRobo} XP** a <@${victimaUser.id}>. 🔥 :v`);
-        } else {
-          recalcularProgreso(atacanteData, xpTotalAtacante - COSTO);
-          recalcularProgreso(victimaData, xpTotalVictima + 500);
-          await atacanteData.save();
-          await victimaData.save();
+              return await interaction.editReply(`⚔️ **¡ROBO COMPLETADO!** **${atacanteUser.username}** le robó **${realRobo} XP** a <@${victimaUser.id}>. 🔥 :v`);
+            } else {
+              recalcularProgreso(atacanteData, xpTotalAtacante - COSTO);
+              recalcularProgreso(victimaData, xpTotalVictima + 500);
+              await atacanteData.save();
+              await victimaData.save();
 
-          return await interaction.editReply(`❌ **¡ROBO FALLIDO!** **${atacanteUser.username}** la cagó y le regaló 500 XP a <@${victimaUser.id}>. 🤡 :v`);
-        }
-      }
-
-      // 4. SILENCIAR (2,500 XP)
-      if (tipo === 'silenciar') {
-        const COSTO = calcularCosto(2500, esGratis);
-        if (xpTotalAtacante < COSTO) return await interaction.editReply('Para meterle bozal a un pisado necesitás más XP.');
-
-        try {
-          const objetivo = await interaction.guild.members.fetch(victimaUser.id);
-          if (!objetivo) throw new Error('No member');
-
-          await objetivo.timeout(60 * 60 * 1000, 'Maldición de ERIS: Silenciado');
-          recalcularProgreso(atacanteData, xpTotalAtacante - COSTO);
-          await atacanteData.save();
-
-          return await interaction.editReply(`🤐 **¡BOZAL PUESTO!** **${atacanteUser.username}** muteó a <@${victimaUser.id}> por 1 hora. :v`);
-        } catch (e) {
-          return await interaction.editReply('No pude silenciar a ese cerote.');
-        }
-      }
-
-      // 5. SPAM EN MD (3,000 XP)
-      if (tipo === 'spam') {
-        const COSTO = calcularCosto(3000, esGratis);
-        if (xpTotalAtacante < COSTO) return await interaction.editReply('Para reventarle los MDs a un pisado necesitás más XP.');
-
-        const mensajesTerror = [
-          "Soy MG, este es mi server, Soy MG, voy a darte admin...",
-          "Heliconta porfavor regresa conmigo esto no me gusta...",
-          "Ay dios mio, ay dios mio, toc-toc quien es? soy MG...",
-          "Te mando un saludo a: MG, Pepo, Zombie, Red, Juan, Laura..."
-        ];
-
-        try {
-          await victimaUser.send("👻 **¡LA MALDICION DEL SPAM HA EMPEZADO!**");
-          recalcularProgreso(atacanteData, xpTotalAtacante - COSTO);
-          await atacanteData.save();
-
-          await interaction.editReply(`🔥 **¡SPAM DESATADO!** **${atacanteUser.username}** le mandó el infierno al MD d <@${victimaUser.id}>. :v`);
-
-          const intervalo = 5000;
-          const tiempoTotal = 5 * 60 * 1000;
-
-          const spamLoop = setInterval(async () => {
-            const fraseAzar = mensajesTerror[Math.floor(Math.random() * mensajesTerror.length)];
-            try {
-              await victimaUser.send(fraseAzar);
-            } catch (err) {
-              clearInterval(spamLoop);
+              return await interaction.editReply(`❌ **¡ROBO FALLIDO!** **${atacanteUser.username}** la cagó y le regaló 500 XP a <@${victimaUser.id}>. 🤡 :v`);
             }
-          }, intervalo);
+          }
 
-          setTimeout(() => {
-            clearInterval(spamLoop);
-            victimaUser.send("🛑 Se acabaron tus 5 minutos de sufrimiento.").catch(() => {});
-          }, tiempoTotal);
+          // 4. SILENCIAR (2,500 XP)
+          if (tipo === 'silenciar') {
+            if (!victimaUser) return await interaction.editReply('Seleccioná una víctima en la opción `victima`.');
+            const COSTO = calcularCosto(2500, esGratis);
+            if (xpTotalAtacante < COSTO) return await interaction.editReply('Para meterle bozal a un pisado necesitás más XP.');
 
-        } catch (e) {
-          return await interaction.editReply(`❌ El pisado de <@${victimaUser.id}> tiene bloqueados los MDs.`);
-        }
+            try {
+              const objetivo = await interaction.guild.members.fetch(victimaUser.id);
+              if (!objetivo) throw new Error('No member');
+
+              await objetivo.timeout(60 * 60 * 1000, 'Maldición de ERIS: Silenciado');
+              recalcularProgreso(atacanteData, xpTotalAtacante - COSTO);
+              await atacanteData.save();
+
+              return await interaction.editReply(`🤐 **¡BOZAL PUESTO!** **${atacanteUser.username}** muteó a <@${victimaUser.id}> por 1 hora. :v`);
+            } catch (e) {
+              return await interaction.editReply('No pude silenciar a ese cerote.');
+            }
+          }
+
+          // 5. SPAM EN MD (3,000 XP)
+          if (tipo === 'spam') {
+            if (!victimaUser) return await interaction.editReply('Seleccioná una víctima en la opción `victima`.');
+            const COSTO = calcularCosto(3000, esGratis);
+            if (xpTotalAtacante < COSTO) return await interaction.editReply('Para reventarle los MDs a un pisado necesitás más XP.');
+
+            const mensajesTerror = [
+              "Soy MG, este es mi server, Soy MG, voy a darte admin...",
+              "Heliconta porfavor regresa conmigo esto no me gusta...",
+              "Ay dios mio, ay dios mio, toc-toc quien es? soy MG...",
+              "Te mando un saludo a: MG, Pepo, Zombie, Red, Juan, Laura..."
+            ];
+
+            try {
+              await victimaUser.send("👻 **¡LA MALDICION DEL SPAM HA EMPEZADO!**");
+              recalcularProgreso(atacanteData, xpTotalAtacante - COSTO);
+              await atacanteData.save();
+
+              await interaction.editReply(`🔥 **¡SPAM DESATADO!** **${atacanteUser.username}** le mandó el infierno al MD d <@${victimaUser.id}>. :v`);
+
+              const intervalo = 5000;
+              const tiempoTotal = 5 * 60 * 1000;
+
+              const spamLoop = setInterval(async () => {
+                const fraseAzar = mensajesTerror[Math.floor(Math.random() * mensajesTerror.length)];
+                try {
+                  await victimaUser.send(fraseAzar);
+                } catch (err) {
+                  clearInterval(spamLoop);
+                }
+              }, intervalo);
+
+              setTimeout(() => {
+                clearInterval(spamLoop);
+                victimaUser.send("🛑 Se acabaron tus 5 minutos de sufrimiento.").catch(() => {});
+              }, tiempoTotal);
+
+            } catch (e) {
+              return await interaction.editReply(`❌ El pisado de <@${victimaUser.id}> tiene bloqueados los MDs.`);
+            }
+          }
+
+          // --- MALDICIONES ULTRA CAÓTICAS EXCLUSIVAS DE BRUJA ---
+
+          // 6. LLAMADA TERRORIFICA (5 MINUTOS - SOLO BRUJAS)
+          if (tipo === 'llamada') {
+            if (!esBruja) return await interaction.editReply('❌ **Nee cerote!** Solo las Brujas pueden mandar la llamada del terror.');
+            if (!victimaUser) return await interaction.editReply('Tenés k seleccionar a la víctima en la opción `victima`.');
+
+            const COSTO = calcularCosto(4000, esGratis);
+            if (xpTotalAtacante < COSTO) return await interaction.editReply('Te falta XP p la llamada maje.');
+
+            const victimaMemberVoice = await interaction.guild.members.fetch(victimaUser.id).catch(() => null);
+            if (!victimaMemberVoice || !victimaMemberVoice.voice.channel) {
+              return await interaction.editReply('❌ Ese pisado ni siquiera está metido en ningún canal d voz ahorita.');
+            }
+
+            recalcularProgreso(atacanteData, xpTotalAtacante - COSTO);
+            await atacanteData.save();
+
+            await interaction.editReply(`📞 **¡LLAMADA TERRORÍFICA ACTIVADA!** ERIS va a estar torturando y ensordeciendo a <@${victimaUser.id}> en el canal d voz por **5 minutos**. 💀 :v`);
+
+            const loopLlamada = setInterval(async () => {
+              try {
+                if (victimaMemberVoice.voice.channel) {
+                  await victimaMemberVoice.voice.setDeaf(true, 'Llamada d ERIS');
+                  setTimeout(() => victimaMemberVoice.voice.setDeaf(false).catch(() => {}), 2500);
+                } else {
+                  clearInterval(loopLlamada);
+                }
+              } catch (e) {}
+            }, 8000);
+
+            setTimeout(() => clearInterval(loopLlamada), 5 * 60 * 1000);
+          }
+
+          // 7. 0 COMANDOS EN EL SERVER (15 MINUTOS - SOLO BRUJAS)
+          if (tipo === 'cero_comandos') {
+            if (!esBruja) return await interaction.editReply('❌ Solo la Bruja Secreta puede apagar los comandos d todo el server.');
+
+            const COSTO = calcularCosto(5000, esGratis);
+            if (xpTotalAtacante < COSTO) return await interaction.editReply('No tenés XP p apagar los comandos.');
+
+            comandosBloqueados = true;
+            recalcularProgreso(atacanteData, xpTotalAtacante - COSTO);
+            await atacanteData.save();
+
+            setTimeout(() => {
+          comandosBloqueados = false;
+        }, 15 * 60 * 1000);
+
+        return await interaction.editReply(`🚫 **¡0 COMANDOS EN TODO EL SERVER!** La Bruja Secreta deshabilitó los comandos p todos los cazadores durante **15 minutos**. ¡Quédense mudos pisados! 🤡🔥 :v`);
+      }
+
+      // 8. LISTA NEGRA DE PALABRAS (SOLO BRUJAS)
+      if (tipo === 'lista_negra') {
+        if (!esBruja) return await interaction.editReply('❌ Solo las Brujas pueden meter palabras a la Lista Negra.');
+        if (!palabraInput) return await interaction.editReply('Escribí la palabra que querés prohibir en la opción `palabra`.');
+
+        const COSTO = calcularCosto(4500, esGratis);
+        if (xpTotalAtacante < COSTO) return await interaction.editReply('Te falta XP p prohibir esa palabra.');
+
+        palabraProhibida = palabraInput;
+        recalcularProgreso(atacanteData, xpTotalAtacante - COSTO);
+        await atacanteData.save();
+
+        return await interaction.editReply(`🤫 **¡PALABRA PROHIBIDA ACTIVADA!** La Bruja prohibió decir la palabra **"${palabraInput}"** en todo el servidor. Mensaje k la tenga será BORRADO en chinga. 💀🔥 :v`);
+      }
+
+      // 9. ACABAR (SPAM PERSONALIZADO EN TODOS LOS CANALES POR 5 MINUTOS - SOLO BRUJAS)
+      if (tipo === 'acabar') {
+        if (!esBruja) return await interaction.editReply('❌ Solo la Bruja Secreta puede invocar el Apocalipsis con /acabar.');
+
+        const textoCustom = textoInput || "🔥 ¡ERIS HA TOMADO EL CONTROL DE ESTE CANAL! MÁNDEN A LA BRUJA A LA HORCA PISADOS 💀 :v";
+
+        const COSTO = calcularCosto(8000, esGratis);
+        if (xpTotalAtacante < COSTO) return await interaction.editReply('Te falta XP p el Apocalipsis d /acabar.');
+
+        recalcularProgreso(atacanteData, xpTotalAtacante - COSTO);
+        await atacanteData.save();
+
+        await interaction.editReply(`💥 **¡DESATANDO EL APOCALIPSIS DE 5 MINUTOS!** ERIS va a spamear tu mensaje en TODOS los canales por 5 minutos seguidos... 💀 :v`);
+
+        const canalesTexto = interaction.guild.channels.cache.filter(c => c.isTextBased() && !c.isThread());
+
+        const mandarRafaga = async () => {
+          canalesTexto.forEach(async (canal) => {
+            try {
+              await canal.send(`📢 **MENSAJE DE LA BRUJA SECRETA:**\n"${textoCustom}"`);
+            } catch (e) {}
+          });
+        };
+
+        await mandarRafaga();
+
+        const intervaloApocalipsis = setInterval(async () => {
+          await mandarRafaga();
+        }, 10000);
+
+        setTimeout(() => {
+          clearInterval(intervaloApocalipsis);
+          canalesTexto.forEach(async (canal) => {
+            try {
+              await canal.send("🛑 **Se acabaron los 5 minutos del apocalipsis d la Bruja.** Respiren cerotes. :v");
+            } catch (e) {}
+          });
+        }, 5 * 60 * 1000);
       }
 
     } catch (error) {
@@ -545,3 +684,5 @@ client.on('interactionCreate', async (interaction) => {
 });
 
 client.login(process.env.TOKEN || process.env.DISCORD_TOKEN);
+        
+      
