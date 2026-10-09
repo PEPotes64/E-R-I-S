@@ -645,6 +645,8 @@ client.on('interactionCreate', async (interaction) => {
         }
     }
 
+    });
+
 
 // ==========================================
 // --- SECCIÓN 10: EJECUTOR COMPLETO DE MALDICIONES ---
