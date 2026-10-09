@@ -589,10 +589,10 @@ client.on('interactionCreate', async (interaction) => {
         return interaction.reply(`🔥 **${user.username}** votó para mandar a la pira a <@${sospechoso.id}>.`);
     }
 
-    // H. /pedir_a_eris (STAFF SECRETO)
+     // H. /pedir_a_eris (STAFF SECRETO)
     if (commandName === 'pedir_a_eris') {
         if (!STAFF_IDS.includes(user.id)) {
-            return interaction.reply({ content: '❌ ¿Qué querés vos pisado? Solo el Staff Secreto usa este comando.', ephemeral: true });
+            return interaction.reply({ content: '❌ ¿Qué querés vos pisado? Solo el Staff puede usar esto.', ephemeral: true });
         }
 
         const accion = options.getString('accion');
@@ -601,15 +601,50 @@ client.on('interactionCreate', async (interaction) => {
         const objetivo = options.getMember('objetivo');
         const rolInput = options.getRole('rol');
 
-        if (accion === 'decir') {
-            await canalDestino.send(textoInput);
-            return interaction.reply({ content: '☑️ Mensaje enviado.', ephemeral: true });
-        } else if (accion === 'limpiar') {
-            await canalDestino.bulkDelete(10, true).catch(() => {});
-            return interaction.reply({ content: '🧹 Mensajes limpiados.', ephemeral: true });
+        try {
+            if (accion === 'decir') {
+                if (!textoInput) {
+                    return interaction.reply({ content: '❌ Tenés que escribir el mensaje en el campo `texto`.', ephemeral: true });
+                }
+                await canalDestino.send(textoInput);
+                return interaction.reply({ content: '📝 Mensaje enviado con éxito.', ephemeral: true });
+
+            } else if (accion === 'limpiar') {
+                await canalDestino.bulkDelete(10, true).catch(() => {});
+                return interaction.reply({ content: '🧹 Mensajes limpiados.', ephemeral: true });
+
+            } else if (accion === 'rol') {
+                if (!objetivo || !rolInput) {
+                    return interaction.reply({ content: '❌ Tenés que seleccionar el `objetivo` (usuario) y el `rol`.', ephemeral: true });
+                }
+                if (objetivo.roles.cache.has(rolInput.id)) {
+                    await objetivo.roles.remove(rolInput.id);
+                    return interaction.reply({ content: `✅ Se le quitó el rol **${rolInput.name}** a <@${objetivo.id}>.`, ephemeral: true });
+                } else {
+                    await objetivo.roles.add(rolInput.id);
+                    return interaction.reply({ content: `✅ Se le asignó el rol **${rolInput.name}** a <@${objetivo.id}> nitidazo.`, ephemeral: true });
+                }
+
+            } else if (accion === 'apodo') {
+                if (!objetivo || !textoInput) {
+                    return interaction.reply({ content: '❌ Tenés que seleccionar el `objetivo` y escribir el nuevo apodo en `texto`.', ephemeral: true });
+                }
+                await objetivo.setNickname(textoInput);
+                return interaction.reply({ content: `✏️ Apodo de <@${objetivo.id}> cambiado a **${textoInput}**.`, ephemeral: true });
+
+            } else if (accion === 'mutear') {
+                if (!objetivo) {
+                    return interaction.reply({ content: '❌ Tenés que seleccionar el `objetivo`.', ephemeral: true });
+                }
+                await objetivo.timeout(60 * 60 * 1000, 'Muteado por ERIS Staff');
+                return interaction.reply({ content: `🔇 <@${objetivo.id}> muteado por 1 hora.`, ephemeral: true });
+            }
+        } catch (err) {
+            console.error("❌ Error en pedir_a_eris:", err);
+            return interaction.reply({ content: `❌ Clavo al ejecutar la acción: ${err.message}. Asegurate de que el rol de ERIS esté más ARRIBA que los demás roles.`, ephemeral: true });
         }
     }
-});
+
 
 // ==========================================
 // --- SECCIÓN 10: EJECUTOR COMPLETO DE MALDICIONES ---
