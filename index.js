@@ -15,7 +15,7 @@ require('dotenv').config();
 const PORT = process.env.PORT || 3000;
 http.createServer((req, res) => {
     res.writeHead(200, { 'Content-Type': 'text/plain' });
-    res.end('Eris la viva y lista para el aquelarre definitivo Pepo :v');
+    res.end('Eris la viva y lista para el aquelarre definitivo en cualquier server Pepo :v');
 }).listen(PORT, () => {
     console.log(`[+] Trampa d puerto jalando nitido en el puerto ${PORT} :v`);
 });
@@ -58,59 +58,28 @@ const erisUserSchema = new mongoose.Schema({
     verdugoCastigadoHasta: { type: Date, default: null }
 });
 
-const ErisUser = mongoose.model('UserXP', erisUserSchema);
+const ErisUser = mongoose.model('ErisUser', erisUserSchema);
 
 const erisGameStateSchema = new mongoose.Schema({
     guildId: { type: String, required: true, unique: true },
     brujasCazadas: { type: Number, default: 0 }, // Meta: 6
     diasSinCazar: { type: Number, default: 0 },   // Meta: 7 seguidos
-    juegoActivo: { type: Boolean, default: true }
+    juegoActivo: { type: Boolean, default: true },
+    palabraProhibida: { type: String, default: null },
+    comandosBloqueados: { type: Boolean, default: false }
 });
 
 const ErisGameState = mongoose.model('ErisGameState', erisGameStateSchema);
 
-// ==========================================
-// --- SECCIÓN 4: POOLS, LISTAS Y VARIABLES GLOBALES ---
-// ==========================================
-const POOL_CANDIDATOS = [
-    "1173252977042141265",
-    "1115304374369542196", // Juan
-    "1271910251418124288",
-    "1247973559546597376",
-    "1176261780810425687",
-    "1321857131088914299",
-    "1106275286112272538",
-    "1473102241649224456",
-    "1209004875198316576"
-];
-
-const STAFF_IDS = [
-    "1259006426978713620", // Pepo
-    "1115304374369542196"  // Juan
-];
-
-const POOL_CANALES_OCULTOS = [
-    "1518617880520626880", "1456350408484532416",
-    "1447313114328410326", "1412110210176126986",
-    "1445443527816896576", "1373302270150762524",
-    "1456351870104014834", "14227586015004890841",
-    "1336314516970018786", "1367712258721410386048",
-    "1457873606659805698", "15377660975589803684",
-    "1456354934963036207", "1422758605004890841",
-    "1337067086008571157", "14705016097626644", "145151632227776685"
-];
-
-// ESTRUCTURAS DE MEMORIA Y ESTADO DE COMANDOS
-let comandosPendientesDemonio = new Map();
+// ESTRUCTURAS DE MEMORIA DINÁMICAS POR GUILD
+let comandosPendientesDemonio = new Map(); // Key: guildId_idCmd
 let registroVotos = {};
 let usuariosQueVotaron = [];
 let votacionAbierta = false;
 let vozIntervino = false;
-let palabraProhibida = null;
-let comandosBloqueados = false;
 
 // ==========================================
-// --- SECCIÓN 5: FUNCIONES AUXILIARES Y TIEMPO ---
+// --- SECCIÓN 4: FUNCIONES AUXILIARES Y TIEMPO ---
 // ==========================================
 function esHoraDeLaBruja() {
     const ahora = new Date();
@@ -124,17 +93,22 @@ function esTormentaDeSangre() {
     return (diaSemana === 0 || diaSemana === 6);
 }
 
-// ASIGNACIÓN ALEATORIA DE ROLES
+// ASIGNACIÓN ALEATORIA DE ROLES DINÁMICA POR SERVIDOR
 async function repartirRolesGeneral(guild) {
     let state = await ErisGameState.findOne({ guildId: guild.id });
     if (!state) state = await ErisGameState.create({ guildId: guild.id });
 
     await ErisUser.updateMany({ guildId: guild.id }, { $set: { rol: 'PANA', alma: 0, esEscudoBruja: false, escudoHasta: null } });
 
-    let disponibles = [...POOL_CANDIDATOS];
+    // Obtener miembros reales del servidor actual (excluyendo bots)
+    await guild.members.fetch();
+    let disponibles = guild.members.cache.filter(m => !m.user.bot).map(m => m.user.id);
     disponibles.sort(() => Math.random() - 0.5); // Mezcla 100% Aleatoria
 
-    if (disponibles.length < 7) return console.log("⚠️ Faltan candidatos para repartir los roles.");
+    if (disponibles.length < 7) {
+        console.log(`⚠️ [${guild.name}] No hay suficientes miembros humanos (mínimo 7) para repartir los roles.`);
+        return false;
+    }
 
     const idBruja1 = disponibles.pop();
     const idBruja2 = disponibles.pop();
@@ -144,13 +118,13 @@ async function repartirRolesGeneral(guild) {
     const idEspectro = disponibles.pop();
     const idVoz = disponibles.pop();
 
-    await ErisUser.updateOne({ userId: idBruja1, guildId: guild.id }, { rol: 'BRUJA' });
-    await ErisUser.updateOne({ userId: idBruja2, guildId: guild.id }, { rol: 'BRUJA' });
-    await ErisUser.updateOne({ userId: idDemonio, guildId: guild.id }, { rol: 'DEMONIO' });
-    await ErisUser.updateOne({ userId: idVerdugo, guildId: guild.id }, { rol: 'VERDUGO' });
-    await ErisUser.updateOne({ userId: idCura, guildId: guild.id }, { rol: 'CURA' });
-    await ErisUser.updateOne({ userId: idEspectro, guildId: guild.id }, { rol: 'ESPECTRO' });
-    await ErisUser.updateOne({ userId: idVoz, guildId: guild.id }, { rol: 'VOZ' });
+    await ErisUser.updateOne({ userId: idBruja1, guildId: guild.id }, { rol: 'BRUJA' }, { upsert: true });
+    await ErisUser.updateOne({ userId: idBruja2, guildId: guild.id }, { rol: 'BRUJA' }, { upsert: true });
+    await ErisUser.updateOne({ userId: idDemonio, guildId: guild.id }, { rol: 'DEMONIO' }, { upsert: true });
+    await ErisUser.updateOne({ userId: idVerdugo, guildId: guild.id }, { rol: 'VERDUGO' }, { upsert: true });
+    await ErisUser.updateOne({ userId: idCura, guildId: guild.id }, { rol: 'CURA' }, { upsert: true });
+    await ErisUser.updateOne({ userId: idEspectro, guildId: guild.id }, { rol: 'ESPECTRO' }, { upsert: true });
+    await ErisUser.updateOne({ userId: idVoz, guildId: guild.id }, { rol: 'VOZ' }, { upsert: true });
 
     const notificar = async (id, msg) => {
         try {
@@ -159,19 +133,20 @@ async function repartirRolesGeneral(guild) {
         } catch (e) {}
     };
 
-    await notificar(idBruja1, "🧙‍♀️ **SOS BRUJA DE LA PURGA.** Escondete del pueblo, junta ALMA cada día y desatálos.");
-    await notificar(idBruja2, "🧙‍♀️ **SOS BRUJA DE LA PURGA.** Escondete del pueblo, junta ALMA cada día y desatálos.");
-    await notificar(idDemonio, "👹 **SOS EL DEMONIO.** Controlás y modificás las maldiciones de las Brujas antes de que se ejecuten. Sos el titiritero supremo.");
-    await notificar(idVerdugo, "🗡️ **SOS EL VERDUGO.** Podés ejecutar a una Bruja en la Hora de la Bruja (6-7 PM GT). ¡Si te equivocás, quedás mulo y silenciado!");
-    await notificar(idCura, "🛡️ **SOS EL CURA.** Podés dar 2 escudos al día de 3h. Si le ponés escudo a una bruja por error y ataca, ¡se rompen todos!");
-    await notificar(idEspectro, "👻 **SOS EL ESPECTRO.** Podés asustar, cambiar apodos y PROFANAR identidades copiando fotos de perfil.");
-    await notificar(idVoz, "🎙️ **SOS LA VOZ.** Podés cambiar los resultados de la horca a último segundo.");
+    await notificar(idBruja1, `🧙‍♀️ **SOS BRUJA DE LA PURGA en ${guild.name}.** Escondete del pueblo, junta ALMA cada día y desatálos.`);
+    await notificar(idBruja2, `🧙‍♀️ **SOS BRUJA DE LA PURGA en ${guild.name}.** Escondete del pueblo, junta ALMA cada día y desatálos.`);
+    await notificar(idDemonio, `👹 **SOS EL DEMONIO en ${guild.name}.** Controlás y modificás las maldiciones de las Brujas antes de que se ejecuten. Sos el titiritero supremo.`);
+    await notificar(idVerdugo, `🗡️ **SOS EL VERDUGO en ${guild.name}.** Podés ejecutar a una Bruja en la Hora de la Bruja (6-7 PM GT). ¡Si te equivocás, quedás mulo y silenciado!`);
+    await notificar(idCura, `🛡️ **SOS EL CURA en ${guild.name}.** Podés dar 2 escudos al día de 3h. Si le ponés escudo a una bruja por error y ataca, ¡se rompen todos!`);
+    await notificar(idEspectro, `👻 **SOS EL ESPECTRO en ${guild.name}.** Podés asustar, cambiar apodos y PROFANAR identidades copiando fotos de perfil.`);
+    await notificar(idVoz, `🎙️ **SOS LA VOZ en ${guild.name}.** Podés cambiar los resultados de la horca a último segundo.`);
 
-    console.log("🔥 Roles repartidos aleatoriamente con éxito.");
+    console.log(`🔥 Roles repartidos aleatoriamente con éxito en el servidor: ${guild.name}`);
+    return true;
 }
 
 // ==========================================
-// --- SECCIÓN 6: REGISTRO DE COMANDOS SLASH ---
+// --- SECCIÓN 5: REGISTRO DE COMANDOS SLASH ---
 // ==========================================
 client.once('ready', async () => {
     console.log(`🔥 ERIS resucitada y lista como ${client.user.tag}`);
@@ -249,7 +224,7 @@ client.once('ready', async () => {
 
         new SlashCommandBuilder()
             .setName('pedir_a_eris')
-            .setDescription('Comando secreto de Staff para mover a ERIS')
+            .setDescription('Comando de Administración para mover a ERIS')
             .addStringOption(opt =>
                 opt.setName('accion')
                    .setDescription('Qué querés que haga ERIS')
@@ -283,7 +258,7 @@ client.once('ready', async () => {
 });
 
 // ==========================================
-// --- SECCIÓN 7: BUCLE AUTOMÁTICO (REVISIÓN DÍA A DÍA) ---
+// --- SECCIÓN 6: BUCLE AUTOMÁTICO (REVISIÓN DÍA A DÍA) ---
 // ==========================================
 setInterval(async () => {
     const ahora = new Date();
@@ -306,7 +281,7 @@ setInterval(async () => {
             state.diasSinCazar += 1;
             if (state.diasSinCazar >= 7) {
                 state.juegoActivo = false;
-                const canalGen = guild.channels.cache.find(c => c.name === 'general');
+                const canalGen = guild.systemChannel || guild.channels.cache.find(c => c.isTextBased());
                 if (canalGen) await canalGen.send('🏆 **¡LAS BRUJAS HAN GANADO LA PURGA!** Han pasado 7 días consecutivos sin que el Pueblo cazara a ninguna Bruja. Se acabaron los juegos alv.');
             }
             await state.save();
@@ -317,7 +292,7 @@ setInterval(async () => {
 }, 60000);
 
 // ==========================================
-// --- SECCIÓN 8: EVENTO DE MENSAJES (CANALES Y PALABRA PROHIBIDA) ---
+// --- SECCIÓN 7: EVENTO DE MENSAJES (CANALES Y PALABRA PROHIBIDA) ---
 // ==========================================
 client.on('messageCreate', async (message) => {
     if (message.author.bot || !message.guild) return;
@@ -325,7 +300,8 @@ client.on('messageCreate', async (message) => {
     const userId = message.author.id;
     const guildId = message.guild.id;
 
-    if (palabraProhibida && message.content.toLowerCase().includes(palabraProhibida.toLowerCase())) {
+    let gameState = await ErisGameState.findOne({ guildId });
+    if (gameState && gameState.palabraProhibida && message.content.toLowerCase().includes(gameState.palabraProhibida.toLowerCase())) {
         try {
             await message.delete();
             const aviso = await message.channel.send(`⚠️ <@${userId}> dijo la palabra prohibida impuesta por la Bruja.`);
@@ -345,16 +321,18 @@ client.on('messageCreate', async (message) => {
             userData.diasActivos += 1;
             userData.ultimaActividad = hoy;
 
-            const canalesDisponibles = POOL_CANALES_OCULTOS.filter(id => !userData.canalesDesbloqueados.includes(id));
+            // Obtener canales de texto del servidor actual de manera dinámica
+            const canalesServidor = message.guild.channels.cache.filter(c => c.isTextBased()).map(c => c.id);
+            const canalesDisponibles = canalesServidor.filter(id => !userData.canalesDesbloqueados.includes(id));
 
             if (canalesDisponibles.length > 0) {
                 const canalRandomId = canalesDisponibles[Math.floor(Math.random() * canalesDisponibles.length)];
                 const canalTarget = message.guild.channels.cache.get(canalRandomId);
 
                 if (canalTarget) {
-                    await canalTarget.permissionOverwrites.edit(userId, { ViewChannel: true });
+                    await canalTarget.permissionOverwrites.edit(userId, { ViewChannel: true }).catch(() => {});
                     userData.canalesDesbloqueados.push(canalRandomId);
-                    await message.channel.send(`🔓 **¡NUEVO CANAL DESBLOQUEADO PARA <@${userId}>!** Por andar activo te ganaste acceso a un canal secreto :v`);
+                    await message.channel.send(`🔓 **¡NUEVO CANAL DESBLOQUEADO PARA <@${userId}>!** Por andar activo te ganaste acceso a un canal secreto :v`).catch(() => {});
                 }
             }
         }
@@ -365,19 +343,20 @@ client.on('messageCreate', async (message) => {
 });
 
 // ==========================================
-// --- SECCIÓN 9: HANDLER DE COMANDOS SLASH ---
+// --- SECCIÓN 8: HANDLER DE COMANDOS SLASH ---
 // ==========================================
 client.on('interactionCreate', async (interaction) => {
     if (!interaction.isChatInputCommand()) return;
 
-    const { commandName, options, guildId, user } = interaction;
+    const { commandName, options, guildId, user, member, guild } = interaction;
 
-    if (comandosBloqueados && !STAFF_IDS.includes(user.id)) {
+    let gameState = await ErisGameState.findOne({ guildId }) || await ErisGameState.create({ guildId });
+
+    if (gameState.comandosBloqueados && !member.permissions.has(PermissionFlagsBits.Administrator)) {
         return interaction.reply({ content: '🚫 **LOS COMANDOS ESTÁN BLOQUEADOS TEMPORALMENTE EN TODO EL SERVER.**', ephemeral: true });
     }
 
     let userData = await ErisUser.findOne({ userId: user.id, guildId }) || await ErisUser.create({ userId: user.id, guildId });
-    let gameState = await ErisGameState.findOne({ guildId }) || await ErisGameState.create({ guildId });
 
     // A. /maldicion (BRUJAS)
     if (commandName === 'maldicion') {
@@ -398,11 +377,13 @@ client.on('interactionCreate', async (interaction) => {
             return interaction.reply({ content: `❌ No tenés suficiente ALMA. Necesitás ${costo} de ALMA y tenés ${userData.alma}.`, ephemeral: true });
         }
 
-        // RETENCIÓN EN BUFFER PARA EL DEMONIO (30s - 45s)
+        // RETENCIÓN EN BUFFER PARA EL DEMONIO
         const demonio = await ErisUser.findOne({ guildId, rol: 'DEMONIO' });
         if (demonio && userData.rol !== 'DEMONIO') {
             const idCmd = Math.random().toString(36).substring(7);
-            comandosPendientesDemonio.set(idCmd, {
+            const keyBuffer = `${guildId}_${idCmd}`;
+            comandosPendientesDemonio.set(keyBuffer, {
+                guildId,
                 atacante: user.id,
                 victima: victimaUser ? victimaUser.id : null,
                 tipo,
@@ -412,21 +393,22 @@ client.on('interactionCreate', async (interaction) => {
 
             try {
                 const uDemonio = await client.users.fetch(demonio.userId);
-                await uDemonio.send(`👹 **MALDICIÓN RETENIDA EN BUFFER:**\nBruja: <@${user.id}>\nVíctima: ${victimaUser ? `<@${victimaUser.id}>` : 'N/A'}\nTipo: \`${tipo}\`\nUsa \`/demonio_panel id_comando:${idCmd} accion:[aprobar/denegar/revertir]\` en los próximos 45s.`);
+                await uDemonio.send(`👹 **MALDICIÓN RETENIDA EN BUFFER (${guild.name}):**\nBruja: <@${user.id}>\nVíctima: ${victimaUser ? `<@${victimaUser.id}>` : 'N/A'}\nTipo: \`${tipo}\`\nUsa \`/demonio_panel id_comando:${idCmd} accion:[aprobar/denegar/revertir]\` en los próximos 45s.`);
             } catch (e) {}
 
             await interaction.reply({ content: '🔮 La maldición se está procesando en las sombras (Buffer de la Bruja activa)...', ephemeral: true });
 
             setTimeout(async () => {
-                if (comandosPendientesDemonio.has(idCmd)) {
-                    await ejecutarMaldicion(interaction, comandosPendientesDemonio.get(idCmd));
-                    comandosPendientesDemonio.delete(idCmd);
+                if (comandosPendientesDemonio.has(keyBuffer)) {
+                    await ejecutarMaldicion(interaction, comandosPendientesDemonio.get(keyBuffer));
+                    comandosPendientesDemonio.delete(keyBuffer);
                 }
             }, 45000);
             return;
         }
 
         await ejecutarMaldicion(interaction, {
+            guildId,
             atacante: user.id,
             victima: victimaUser ? victimaUser.id : null,
             tipo,
@@ -436,20 +418,21 @@ client.on('interactionCreate', async (interaction) => {
     }
 
     // B. /demonio_panel (DEMONIO)
-    if (commandName === 'demonio_panel') {
+        if (commandName === 'demonio_panel') {
         if (userData.rol !== 'DEMONIO') {
-                        return interaction.reply({ content: '❌ Solo el Demonio titiritero puede usar este panel.', ephemeral: true });
+            return interaction.reply({ content: '❌ Solo el Demonio titiritero puede usar este panel.', ephemeral: true });
         }
 
         const idCmd = options.getString('id_comando');
         const accion = options.getString('accion');
+        const keyBuffer = `${guildId}_${idCmd}`;
 
-        if (!comandosPendientesDemonio.has(idCmd)) {
+        if (!comandosPendientesDemonio.has(keyBuffer)) {
             return interaction.reply({ content: '❌ Esa maldición ya expiró o fue procesada.', ephemeral: true });
         }
 
-        const cmdData = comandosPendientesDemonio.get(idCmd);
-        comandosPendientesDemonio.delete(idCmd);
+        const cmdData = comandosPendientesDemonio.get(keyBuffer);
+        comandosPendientesDemonio.delete(keyBuffer);
 
         if (accion === 'denegar') {
             return interaction.reply({ content: '🚫 Cancelaste la maldición de la Bruja en secreto.', ephemeral: true });
@@ -482,8 +465,7 @@ client.on('interactionCreate', async (interaction) => {
         const sospechoso = options.getUser('sospechoso');
         const sospechosoData = await ErisUser.findOne({ userId: sospechoso.id, guildId });
 
-        if (sospechosoData.rol === 'BRUJA' || sospechosoData.rol === 'DEMONIO')
-         {
+        if (sospechosoData && (sospechosoData.rol === 'BRUJA' || sospechosoData.rol === 'DEMONIO')) {
             gameState.brujasCazadas += 1;
             gameState.diasSinCazar = 0;
             await gameState.save();
@@ -505,8 +487,8 @@ client.on('interactionCreate', async (interaction) => {
             userData.rol = 'PANA';
             await userData.save();
 
-            const memberVictima = await interaction.guild.members.fetch(sospechoso.id);
-            if (memberVictima) await memberVictima.timeout(24 * 60 * 60 * 1000, "Error del Verdugo");
+            const memberVictima = await interaction.guild.members.fetch(sospechoso.id).catch(() => null);
+            if (memberVictima) await memberVictima.timeout(24 * 60 * 60 * 1000, "Error del Verdugo").catch(() => {});
 
             await interaction.reply(`🤡 **¡EL VERDUGO SE EQUIVOCÓ!** <@${sospechoso.id}> era un inocente. El inocente queda silenciado 1 día y el Verdugo pierde sus poderes 2 días.`);
         }
@@ -523,7 +505,7 @@ client.on('interactionCreate', async (interaction) => {
         }
 
         const objetivo = options.getUser('usuario');
-        const objetivoData = await ErisUser.findOne({ userId: objetivo.id, guildId });
+        let objetivoData = await ErisUser.findOne({ userId: objetivo.id, guildId }) || await ErisUser.create({ userId: objetivo.id, guildId });
 
         const tresHoras = new Date(Date.now() + 3 * 60 * 60 * 1000);
         objetivoData.escudoHasta = tresHoras;
@@ -550,10 +532,10 @@ client.on('interactionCreate', async (interaction) => {
         const victima = options.getUser('victima');
 
         if (tipo === 'profanar') {
-            const member = await interaction.guild.members.fetch(victima.id);
+            const member = await interaction.guild.members.fetch(victima.id).catch(() => null);
             await interaction.channel.send({
                 content: `👻 **[PROFANACIÓN DE IDENTIDAD]** <@${victima.id}> dice: "${options.getString('texto') || 'Auxilio cerotes'}"`,
-                avatarURL: member.user.displayAvatarURL()
+                avatarURL: member ? member.user.displayAvatarURL() : null
             });
             return interaction.reply({ content: '🎭 Identidad profanada en el chat.', ephemeral: true });
         }
@@ -589,10 +571,10 @@ client.on('interactionCreate', async (interaction) => {
         return interaction.reply(`🔥 **${user.username}** votó para mandar a la pira a <@${sospechoso.id}>.`);
     }
 
-     // H. /pedir_a_eris (STAFF SECRETO)
+    // H. /pedir_a_eris (ADMINISTRACIÓN UNIVERSAL)
     if (commandName === 'pedir_a_eris') {
-        if (!STAFF_IDS.includes(user.id)) {
-            return interaction.reply({ content: '❌ ¿Qué querés vos pisado? Solo el Staff puede usar esto.', ephemeral: true });
+        if (!member.permissions.has(PermissionFlagsBits.Administrator) && user.id !== guild.ownerId) {
+            return interaction.reply({ content: '❌ ¿Qué querés vos pisado? Solo los Administradores de este servidor pueden usar esto.', ephemeral: true });
         }
 
         const accion = options.getString('accion');
@@ -644,19 +626,17 @@ client.on('interactionCreate', async (interaction) => {
             return interaction.reply({ content: `❌ Clavo al ejecutar la acción: ${err.message}. Asegurate de que el rol de ERIS esté más ARRIBA que los demás roles.`, ephemeral: true });
         }
     }
-
-    });
-
+});
 
 // ==========================================
-// --- SECCIÓN 10: EJECUTOR COMPLETO DE MALDICIONES ---
+// --- SECCIÓN 9: EJECUTOR COMPLETO DE MALDICIONES ---
 // ==========================================
 async function ejecutarMaldicion(interaction, cmdData) {
-    const { atacante, victima, tipo, costo, texto } = cmdData;
+    const { guildId, atacante, victima, tipo, costo, texto } = cmdData;
     const guild = interaction.guild;
 
-    const atacanteData = await ErisUser.findOne({ userId: atacante, guildId: guild.id });
-    const victimaData = victima ? await ErisUser.findOne({ userId: victima, guildId: guild.id }) : null;
+    const atacanteData = await ErisUser.findOne({ userId: atacante, guildId });
+    const victimaData = victima ? await ErisUser.findOne({ userId: victima, guildId }) : null;
 
     if (!esTormentaDeSangre() && atacanteData) {
         atacanteData.alma = Math.max(0, atacanteData.alma - costo);
@@ -664,23 +644,24 @@ async function ejecutarMaldicion(interaction, cmdData) {
     }
 
     if (atacanteData && (atacanteData.rol === 'BRUJA' || atacanteData.rol === 'DEMONIO') && atacanteData.esEscudoBruja) {
-        await ErisUser.updateMany({ guildId: guild.id }, { $set: { escudoHasta: null, esEscudoBruja: false } });
-        await interaction.channel.send('💥 **¡LA BRUJA ATACÓ TENIENDO ESCUDO DEL CURA! TODOS LOS ESCUDOS SAGRADOS SE HAN ROTO EN EL SERVIDOR.**');
+        await ErisUser.updateMany({ guildId }, { $set: { escudoHasta: null, esEscudoBruja: false } });
+        await interaction.channel.send('💥 **¡LA BRUJA ATACÓ TENIENDO ESCUDO DEL CURA! TODOS LOS ESCUDOS SAGRADOS SE HAN ROTO EN EL SERVIDOR.**').catch(() => {});
     }
 
     if (victimaData && victimaData.escudoHasta && victimaData.escudoHasta > new Date()) {
         const rebota = Math.random() < 0.5;
         if (rebota) {
-            await interaction.channel.send(`🪞 **¡EL ESCUDO DEL CURA REFLEJÓ LA MALDICIÓN!** La maldición rebotó d regreso a <@${atacante}>.`);
+            await interaction.channel.send(`🪞 **¡EL ESCUDO DEL CURA REFLEJÓ LA MALDICIÓN!** La maldición rebotó d regreso a <@${atacante}>.`).catch(() => {});
             return;
         }
     }
 
     const memberVictima = victima ? await guild.members.fetch(victima).catch(() => null) : null;
+    let gameState = await ErisGameState.findOne({ guildId });
 
     // 1. SUSTO
     if (tipo === 'susto') {
-        await interaction.channel.send(`👻 **¡LA MALDICIÓN CAYÓ SOBRE <@${victima}>!** Sentís un escalofrío en las nalgas :v`);
+        await interaction.channel.send(`ghost **¡LA MALDICIÓN CAYÓ SOBRE <@${victima}>!** Sentís un escalofrío en las nalgas :v`).catch(() => {});
     } 
     // 2. APODO
     else if (tipo === 'apodo' && memberVictima) {
@@ -703,7 +684,7 @@ async function ejecutarMaldicion(interaction, cmdData) {
     else if (tipo === 'spam' && memberVictima) {
         await interaction.channel.send(`🔥 **¡SPAM EN MD DESATADO SOBRE <@${victima}>!**`);
         for (let i = 0; i < 5; i++) {
-            await memberVictima.send("🔥 **ERIS TIENE EL CONTROL D TU ALMA:** Soy MG, Pepo te manda saludos alv :v").catch(() => {});
+            await memberVictima.send(`🔥 **ERIS TIENE EL CONTROL D TU ALMA en ${guild.name}:** Cuidado con las brujas alv :v`).catch(() => {});
         }
     } 
     // 6. LLAMADA TERRORÍFICA (DEAFEN EN VOZ)
@@ -711,21 +692,30 @@ async function ejecutarMaldicion(interaction, cmdData) {
         if (memberVictima.voice && memberVictima.voice.channel) {
             await memberVictima.voice.setDeaf(true, "Llamada Terrorífica").catch(() => {});
             setTimeout(() => memberVictima.voice.setDeaf(false).catch(() => {}), 5 * 60 * 1000);
-                    await interaction.channel.send(`📞 **¡LLAMADA TERRORÍFICA ACTIVADA!** <@${victima}> quedó ensordecido en voz por 5 minutos.`);
+            await interaction.channel.send(`📞 **¡LLAMADA TERRORÍFICA ACTIVADA!** <@${victima}> quedó ensordecido en voz por 5 minutos.`);
         } else {
             await interaction.channel.send(`📞 <@${victima}> no está en ningún canal de voz p ensordecerlo.`);
         }
     } 
     // 7. CERO COMANDOS EN TODO EL SERVER
     else if (tipo === 'cero_comandos') {
-        comandosBloqueados = true;
-        setTimeout(() => comandosBloqueados = false, 15 * 60 * 1000);
+        if (gameState) {
+            gameState.comandosBloqueados = true;
+            await gameState.save();
+            setTimeout(async () => {
+                gameState.comandosBloqueados = false;
+                await gameState.save();
+            }, 15 * 60 * 1000);
+        }
         await interaction.channel.send('🚫 **¡LA BRUJA BLOQUEÓ TODOS LOS COMANDOS EN EL SERVER POR 15 MINUTOS!**');
     } 
     // 8. LISTA NEGRA DE PALABRAS
     else if (tipo === 'lista_negra') {
-        palabraProhibida = texto || 'cerote';
-        await interaction.channel.send(`🖤 **¡NUEVA PALABRA PROHIBIDA ESTABLECIDA!** La palabra es **"${palabraProhibida}"**.`);
+        if (gameState) {
+            gameState.palabraProhibida = texto || 'cerote';
+            await gameState.save();
+        }
+        await interaction.channel.send(`🖤 **¡NUEVA PALABRA PROHIBIDA ESTABLECIDA!** La palabra es **"${texto || 'cerote'}"**.`);
     } 
     // 9. ACABAR (SPAM APOCALÍPTICO)
     else if (tipo === 'acabar') {
@@ -739,8 +729,7 @@ async function ejecutarMaldicion(interaction, cmdData) {
 }
 
 // ==========================================
-// --- SECCIÓN 11: INICIO DE SESIÓN ---
+// --- SECCIÓN 10: INICIO DE SESIÓN ---
 // ==========================================
 client.login(process.env.TOKEN || process.env.DISCORD_TOKEN);
-
-            
+                
